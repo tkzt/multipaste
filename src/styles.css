@@ -1,0 +1,17 @@
+body {
+  margin: 0;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+}
+
+.btn {
+  --at-apply: block w-6 h-6 flex justify-center items-center rd-50% cursor-pointer;
+  --at-apply: "hover:bg-[rgba(0,0,0,.05)] important:active:bg-[rgba(0,0,0,.1)] active:scale-105";
+  --at-apply: "dark:hover:bg-[rgba(255,255,255,.25)] important:dark:active:bg-[rgba(255,255,255,.3)]";
+}
+
+i {
+  display: block;
+}
