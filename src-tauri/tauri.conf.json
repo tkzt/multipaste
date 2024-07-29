@@ -24,7 +24,13 @@
       "window": {
         "all": false,
         "startDragging": true,
-        "close": true
+        "hide": true
+      },
+      "protocol": {
+        "asset": true,
+        "assetScope": [
+          "$APPDATA/assets/*"
+        ]
       }
     },
     "bundle": {
@@ -40,17 +46,30 @@
       ]
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost"
     },
     "windows": [
       {
+        "label": "main",
+        "url": "/",
         "fullscreen": false,
         "resizable": false,
-        "title": "multipaste",
         "width": 400,
         "minHeight": 400,
         "transparent": true,
-        "decorations": false
+        "decorations": false,
+        "visible": false
+      },
+      {
+        "label": "settings",
+        "url": "/settings",
+        "fullscreen": false,
+        "resizable": false,
+        "width": 300,
+        "height": 150,
+        "transparent": true,
+        "decorations": false,
+        "visible": false
       }
     ],
     "macOSPrivateApi": true

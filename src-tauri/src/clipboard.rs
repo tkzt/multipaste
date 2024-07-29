@@ -1,20 +1,31 @@
-use macos_clipboard::{Clipboard, ClipboardManager};
-use std::sync::Arc;
+use clippers::Clipboard;
 use std::thread;
+use std::time::Duration;
 
-fn main() {
-    // 创建剪贴板管理器
-    let clipboard_manager = ClipboardManager::new();
+fn read_clipboard() {
+    let mut clipboard = Clipboard::get();
+    match clipboard.read() {
+        Some(clippers::ClipperData::Text(text)) => {
+            println!("Clipboard text: {:?}", text);
+        }
 
-    // 获取剪贴板实例
-    let clipboard: Arc<dyn Clipboard> = Arc::new(clipboard_manager.get_clipboard());
+        Some(clippers::ClipperData::Image(image)) => {
+            println!("Clipboard image: {}x{} RGBA", image.width(), image.height());
+        }
 
-    // 监听剪贴板变化并触发操作
-    clipboard.on_change(|contents| {
-        println!("剪贴板内容已更改：{}", contents);
-        // 在这里执行你想要的操作
+        Some(data) => {
+            println!("Clipboard data is unknown: {data:?}");
+        }
+
+        None => {
+            println!("Clipboard is empty");
+        }
+    }
+}
+
+pub fn listen() {
+    thread::spawn(move || loop {
+        read_clipboard();
+        thread::sleep(Duration::from_millis(500));
     });
-
-    // 阻塞主线程，保持监听
-    thread::park();
 }
