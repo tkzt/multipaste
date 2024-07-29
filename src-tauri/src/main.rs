@@ -11,6 +11,12 @@ use tauri::{
 };
 use tauri_plugin_positioner::{Position, WindowExt};
 
+use tauri::{
+    CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    SystemTrayMenuItem, WindowEvent,
+};
+use tauri_plugin_positioner::{Position, WindowExt};
+
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 fn greet(name: &str) -> String {

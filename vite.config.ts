@@ -6,13 +6,17 @@ import transformerDirectives from '@unocss/transformer-directives'
 
 
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig({
   plugins: [
     vue(),
     UnoCSS({
       presets: [presetIcons(), presetUno()],
       transformers: [
         transformerDirectives(),
+      ],
+      shortcuts: [
+        ['btn', 'px-4 py-1 rounded inline-block bg-slate-700 text-white cursor-pointer !outline-none hover:bg-slate-800 disabled:cursor-default disabled:bg-gray-600 disabled:opacity-50'],
+        ['icon-btn', 'hover:bg-gray-400 h-4 w-4 flex items-center justify-center rd-full inline-block cursor-pointer select-none opacity-75 transition duration-200 ease-in-out hover:opacity-100 hover:text-slate-600'],
       ],
     })
   ],
@@ -36,4 +40,4 @@ export default defineConfig(async () => ({
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
-}));
+});
