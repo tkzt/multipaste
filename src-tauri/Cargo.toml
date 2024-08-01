@@ -1,6 +1,6 @@
 [package]
 name = "multipaste"
-version = "0.0.0"
+version = "0.0.1"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -13,7 +13,7 @@ edition = "2021"
 tauri-build = { version = "1.4", features = [] }
 
 [dependencies]
-tauri = { version = "1.4", features = [ "window-hide", "protocol-asset", "system-tray", "window-start-dragging", "macos-private-api", "shell-open"] }
+tauri = { version = "1.4", features = [ "global-shortcut-all", "window-hide", "protocol-asset", "system-tray", "window-start-dragging", "macos-private-api", "shell-open"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 window-vibrancy = "0.3.2"
@@ -24,7 +24,6 @@ r2d2 = "0.8.10"
 r2d2_sqlite = "0.25.0"
 clippers = "0.1.2"
 tauri-plugin-positioner = { version = "1.0.5", features = ["system-tray"] }
-tauri-plugin-global-shortcut = "2.0.0-beta.8"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

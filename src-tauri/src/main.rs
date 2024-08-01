@@ -6,22 +6,11 @@ mod setup;
 mod shortcut;
 
 use tauri::{
-    CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    SystemTrayMenuItem, WindowEvent,
+    Manager, SystemTray, SystemTrayEvent, SystemTrayMenu,
 };
 use tauri_plugin_positioner::{Position, WindowExt};
+use shortcut::search_focus;
 
-use tauri::{
-    CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    SystemTrayMenuItem, WindowEvent,
-};
-use tauri_plugin_positioner::{Position, WindowExt};
-
-// Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
 
 fn main() {
     let tray_menu = SystemTrayMenu::new();
@@ -41,7 +30,7 @@ fn main() {
         })
         .system_tray(SystemTray::new().with_menu(tray_menu))
         .setup(setup::init)
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![search_focus])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

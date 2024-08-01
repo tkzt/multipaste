@@ -1,11 +1,14 @@
-use crate::{clipboard, shortcut};
-use tauri::{App, Manager};
+use crate::clipboard;
+use tauri::{ActivationPolicy, App, Manager};
 #[cfg(target_os = "macos")]
 use window_vibrancy::NSVisualEffectMaterial;
 
 pub fn init(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
     for label in ["main", "settings"] {
         let window = app.get_window(label).unwrap();
+
+        #[cfg(target_os = "macos")]
+        app.set_activation_policy(ActivationPolicy::Accessory);
 
         #[cfg(target_os = "macos")]
         window_vibrancy::apply_vibrancy(
@@ -21,7 +24,6 @@ pub fn init(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>
             .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
 
         clipboard::listen();
-        shortcut::listen();
     }
     Ok(())
 }

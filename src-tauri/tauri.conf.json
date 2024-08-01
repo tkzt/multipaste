@@ -31,6 +31,9 @@
         "assetScope": [
           "$APPDATA/assets/*"
         ]
+      },
+      "globalShortcut": {
+        "all": true
       }
     },
     "bundle": {

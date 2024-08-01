@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watchEffect } from 'vue';
-import { useDark } from '@vueuse/core';
-import PerfectScrollbar from 'perfect-scrollbar';
-import 'perfect-scrollbar/css/perfect-scrollbar.css';
-import RecordItem from '../components/RecordItem.vue';
-
+import { nextTick, onBeforeUnmount, ref, watchEffect } from 'vue'
+import { useDark } from '@vueuse/core'
+import PerfectScrollbar from 'perfect-scrollbar'
+import 'perfect-scrollbar/css/perfect-scrollbar.css'
+import RecordItem from '../components/RecordItem.vue'
 
 const itemsRef = ref<HTMLElement>()
 const ps = ref<PerfectScrollbar>()
@@ -25,24 +24,24 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative rd-3 overflow-hidden flex flex-col h-100vh">
-    <div class="h-10 text-lg shrink-0 flex items-center justify-center" data-tauri-drag-region>
-      <i class="i-mdi-drag-horizontal block cursor-grab dark:c-white" data-tauri-drag-region></i>
+  <div class="relative h-100vh flex flex-col overflow-hidden rd-lg">
+    <div class="h-10 flex shrink-0 items-center justify-center text-lg" data-tauri-drag-region>
+      <i class="i-mdi-drag-horizontal block cursor-grab dark:c-white" data-tauri-drag-region />
     </div>
-    <div class="w-full px-2 box-border pb-1">
-      <div class="w-full rounded-lg bg-white/12 p-2 box-border flex">
-        <i class="i-mdi-magnify text-xl mr-1"></i>
+    <div class="box-border w-full px-2 pb-1">
+      <div class="box-border w-full flex rounded-lg bg-white/12 p-2">
+        <i class="i-mdi-magnify mr-1 text-xl" />
         <input
-          class="outline-none border-none bg-transparent p-0 text-1rem shrink-1 grow-1 select-none"
-          placeholder="Filter..." />
+          class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none"
+          placeholder="Filter..."
+        >
       </div>
     </div>
-    <div class="
-      important:pa-2 box-border select-none relative overflow-auto
-      h-[calc(100%-.5rem)] no-scrollbar
-    " ref="itemsRef">
+    <div
+      ref="itemsRef" class="no-scrollbar relative box-border h-[calc(100%-.5rem)] select-none overflow-auto important:pa-2"
+    >
       <div class="flex flex-col">
-        <RecordItem :item="item" :class="{ 'mt-2': index > 0 }" v-for="item, index in items" />
+        <RecordItem v-for="item, index in items" :key="index" :item="item" :class="{ 'mt-2': index > 0 }" />
       </div>
     </div>
   </div>
