@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watchEffect } from 'vue'
-import { useDark } from '@vueuse/core'
 import PerfectScrollbar from 'perfect-scrollbar'
 import 'perfect-scrollbar/css/perfect-scrollbar.css'
+import { appWindow } from '@tauri-apps/api/window'
 import RecordItem from '../components/RecordItem.vue'
 
 const itemsRef = ref<HTMLElement>()
@@ -20,6 +20,10 @@ watchEffect(() => {
 
 onBeforeUnmount(() => {
   ps.value?.destroy()
+})
+
+appWindow.listen('tauri://blur', async () => {
+  await appWindow.hide()
 })
 </script>
 

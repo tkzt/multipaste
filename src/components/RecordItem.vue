@@ -1,23 +1,7 @@
-<template>
-  <div class="
-    box-border pa-4 bg-[rgba(255,255,255,.37)] rd-2 hover:bg-[rgba(255,255,255,.5)]
-    dark:c-white text-sm flex items-center justify-between relative cursor-pointer
-  " ref="containerRef">
-    <div>{{ item }}</div>
-    <div class="flex absolute right-1 top-1" v-if="!isOutsideContainer">
-      <div class="btn">
-        <i class="i-mdi-pin-outline rotate-45"></i>
-      </div>
-      <div class="btn">
-        <i class="i-mdi-close"></i>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { useMouseInElement } from "@vueuse/core"
-import { ref } from "vue"
+import { useMouseInElement } from '@vueuse/core'
+import { ref } from 'vue'
+
 defineProps<{
   item: string
 }>()
@@ -25,3 +9,19 @@ defineProps<{
 const containerRef = ref<HTMLElement>()
 const { isOutside: isOutsideContainer } = useMouseInElement(containerRef)
 </script>
+
+<template>
+  <div
+    ref="containerRef" class="relative box-border flex cursor-pointer items-center justify-between rd-2 bg-[rgba(255,255,255,.37)] pa-4 text-sm hover:bg-[rgba(255,255,255,.5)] dark:c-white"
+  >
+    <div>{{ item }}</div>
+    <div v-if="!isOutsideContainer" class="absolute right-1 top-1 flex">
+      <div class="btn">
+        <i class="i-mdi-pin-outline rotate-45" />
+      </div>
+      <div class="btn">
+        <i class="i-mdi-close" />
+      </div>
+    </div>
+  </div>
+</template>
