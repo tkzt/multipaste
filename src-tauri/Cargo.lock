@@ -1879,6 +1879,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-global-shortcut",
+ "tauri-plugin-positioner",
  "window-vibrancy",
 ]
 
@@ -3366,6 +3367,21 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror",
+]
+
+[[package]]
+name = "tauri-plugin-positioner"
+version = "2.0.0-rc.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "581c8e4d65faebaf584fd2d7d7c7602c27ae458d9362566ee29c4ed6fa6eae40"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "serde_repr",
  "tauri",
  "tauri-plugin",
  "thiserror",

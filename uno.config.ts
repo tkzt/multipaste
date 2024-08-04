@@ -10,6 +10,6 @@ export default defineConfig({
     dark: 'media',
   }), presetIcons()],
   shortcuts: [
-    ['card', 'rd-lg hover:(bg-white/20 dark:bg-white/20) bg-white/30 p-2 dark:bg-white/12'],
+    ['card', 'rd-lg hover:(bg-white/20 dark:bg-white/20) bg-white/30 p-2 dark:(bg-white/12 text-gray-100)'],
   ],
 })

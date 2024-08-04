@@ -29,9 +29,9 @@ onBeforeUnmount(() => {
     </div>
     <div class="box-border w-full px-2 pb-1">
       <div class="box-border w-full flex rounded-lg bg-white/12 p-2">
-        <i class="i-mdi-magnify mr-1 text-xl" />
+        <i class="i-mdi-magnify mr-1 text-xl dark:text-gray-100" />
         <input
-          class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none"
+          class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none placeholder-gray-400"
           placeholder="Filter..."
         >
       </div>

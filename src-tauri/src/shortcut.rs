@@ -1,17 +1,24 @@
-use enigo::{Enigo, Mouse, Settings};
-use tauri::{Manager, PhysicalPosition};
+use std::error::Error;
+use tauri::App;
 
-#[tauri::command]
-pub fn search_focus() {}
+#[cfg(desktop)]
+pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
+  use tauri::Manager;
+  use tauri_plugin_global_shortcut::{Modifiers, Builder, Code};
+use tauri_plugin_positioner::{Position, WindowExt};
 
-#[tauri::command]
-pub fn awake(app_handle: tauri::AppHandle) {
-    let main_window = app_handle.get_webview_window("main").unwrap();
-    let (x, y) = Enigo::new(&Settings::default())
-        .unwrap()
-        .location()
-        .unwrap();
-    let _ = main_window.set_position(PhysicalPosition::new(x, y));
-    let _ = main_window.show();
-    let _ = main_window.set_focus();
+  app.handle().plugin(
+    Builder::new()
+    .with_shortcuts(["ctrl+v"])?
+    .with_handler(move |app_handle, shortcut, _event| {
+      if shortcut.mods.contains(Modifiers::CONTROL) && shortcut.key == Code::KeyV {
+        let main_window = app_handle.get_webview_window("main").unwrap();
+        let _ = main_window.move_window(Position::Center);
+        let _ = main_window.show();
+        let _ = main_window.set_focus();
+      }
+    })
+    .build()
+  )?;
+  Ok(())
 }

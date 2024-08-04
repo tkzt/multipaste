@@ -2,14 +2,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clipboard;
-mod shortcut;
 mod tray;
+mod shortcut;
 
 use tauri::{ActivationPolicy, App, Manager, Window, WindowEvent};
 #[cfg(target_os = "macos")]
 use window_vibrancy::NSVisualEffectMaterial;
-
-use shortcut::{awake, search_focus};
 
 fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
     for label in ["main", "settings"] {
@@ -35,6 +33,7 @@ fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     tray::init(app);
     clipboard::listen();
+    shortcut::init(app)?;
     Ok(())
 }
 
@@ -52,10 +51,10 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_positioner::init())
         .on_window_event(on_window_event)
         .setup(setup)
-        .invoke_handler(tauri::generate_handler![search_focus, awake])
+        .invoke_handler(tauri::generate_handler![])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
