@@ -1,9 +1,4 @@
 <script setup lang="ts">
-import { appWindow } from '@tauri-apps/api/window'
-
-appWindow.listen('tauri://blur', async () => {
-  await appWindow.hide()
-})
 </script>
 
 <template>

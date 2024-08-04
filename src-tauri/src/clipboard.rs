@@ -10,7 +10,7 @@ fn read_clipboard() {
         }
 
         Some(clippers::ClipperData::Image(image)) => {
-            println!("Clipboard image: {}x{} RGBA", image.width(), image.height());
+            println!("Clipboard image: {}x{}", image.width(), image.height());
         }
 
         Some(data) => {

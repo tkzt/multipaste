@@ -1,22 +1,26 @@
 [package]
 name = "multipaste"
 version = "0.0.1"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
+description = "A clipboard manager."
+authors = ["Allen Tao"]
+license = "MIT"
 repository = ""
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "multipaste_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
 [build-dependencies]
-tauri-build = { version = "1.4", features = [] }
+tauri-build = { version = "2.0.0-rc.0", features = [] }
 
 [dependencies]
-tauri = { version = "1.4", features = [ "global-shortcut-all", "window-hide", "protocol-asset", "system-tray", "window-start-dragging", "macos-private-api", "shell-open"] }
+tauri = { version = "2.0.0-rc.0", features = [ "protocol-asset", "macos-private-api", "tray-icon"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-window-vibrancy = "0.3.2"
+window-vibrancy = "0.5.0"
 rusqlite = "0.32.0"
 chrono = "0.4.38"
 lazy_static = "1.5.0"
@@ -29,3 +33,6 @@ enigo = "0.2.1"
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+
+[target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
+tauri-plugin-global-shortcut = "2.0.0-rc.0"

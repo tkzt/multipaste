@@ -1,56 +1,14 @@
 {
+  "productName": "multipaste",
+  "version": "0.0.1",
+  "identifier": "com.tkzt.multipaste",
   "build": {
     "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "multipaste",
-    "version": "0.0.0"
-  },
-  "tauri": {
-    "systemTray": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true
-    },
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false,
-        "open": true
-      },
-      "window": {
-        "all": false,
-        "startDragging": true,
-        "hide": true
-      },
-      "protocol": {
-        "asset": true,
-        "assetScope": [
-          "$APPDATA/assets/*"
-        ]
-      },
-      "globalShortcut": {
-        "all": true
-      }
-    },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.tkzt.multipaste",
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ]
-    },
-    "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost"
-    },
+  "app": {
     "windows": [
       {
         "label": "main",
@@ -75,6 +33,30 @@
         "visible": false
       }
     ],
-    "macOSPrivateApi": true
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "assets"
+        ]
+      }
+    },
+    "macOSPrivateApi": true,
+    "trayIcon": {
+      "iconPath": "icons/icon.ico",
+      "id": "multipaste-tray"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }
