@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watchEffect } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import PerfectScrollbar from 'perfect-scrollbar'
 import 'perfect-scrollbar/css/perfect-scrollbar.css'
+import { invoke } from '@tauri-apps/api/core'
 import RecordItem from '../components/RecordItem.vue'
 
 const itemsRef = ref<HTMLElement>()
@@ -19,6 +20,10 @@ watchEffect(() => {
 
 onBeforeUnmount(() => {
   ps.value?.destroy()
+})
+
+onMounted(async ()=>{
+  const res = await invoke('get_clipboard_records')
 })
 </script>
 

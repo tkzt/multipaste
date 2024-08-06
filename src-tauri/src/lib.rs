@@ -2,8 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clipboard;
-mod tray;
 mod shortcut;
+mod store;
+mod tray;
 
 use tauri::{ActivationPolicy, App, Manager, Window, WindowEvent};
 #[cfg(target_os = "macos")]
@@ -32,8 +33,9 @@ fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 
     tray::init(app);
-    clipboard::listen();
     shortcut::init(app)?;
+    let store = store::init(app)?;
+    clipboard::listen(store);
     Ok(())
 }
 
@@ -43,8 +45,8 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
             if !focused {
                 let _ = window.hide();
             }
-        },
-        _=>()
+        }
+        _ => (),
     }
 }
 
@@ -54,7 +56,7 @@ pub fn run() {
         .plugin(tauri_plugin_positioner::init())
         .on_window_event(on_window_event)
         .setup(setup)
-        .invoke_handler(tauri::generate_handler![])
+        .invoke_handler(tauri::generate_handler![store::get_clipboard_records])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
