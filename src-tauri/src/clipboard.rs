@@ -9,7 +9,6 @@ fn read_clipboard(store: &RecordStore) -> Result<(), Box<dyn std::error::Error>>
     let mut clipboard = Clipboard::get();
     match clipboard.read() {
         Some(clippers::ClipperData::Text(text)) => {
-            // if store.
             store.save(&RecordType::Text, &text.to_string(), None)?;
         }
 

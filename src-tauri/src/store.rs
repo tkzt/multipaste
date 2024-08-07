@@ -85,8 +85,7 @@ impl RecordStore {
             record_value text not null unique,
             hash varchar(32) unique,
             updated_at integer not null,
-            pinned integer not null default 0 check (pinned in (0, 1)),
-            unique(record_value, hash)
+            pinned integer not null default 0 check (pinned in (0, 1))
         );
         create index if not exists idx_hash on clipboard_record(hash);
         ",
@@ -105,9 +104,11 @@ impl RecordStore {
             "
         insert into clipboard_record (record_type, record_value, hash, updated_at)
         values (?1, ?2, ?3, ?4)
-        on conflict(record_value, hash) do update set
-          updated_at = ?4
-      ",
+        on conflict(record_value) do update set
+            updated_at = ?4
+        on conflict(hash) do update set
+            updated_at = ?4
+        ",
             params![
                 record_type.to_string(),
                 record_value,
