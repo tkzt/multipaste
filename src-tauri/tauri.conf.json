@@ -27,7 +27,7 @@
         "fullscreen": false,
         "resizable": false,
         "width": 200,
-        "height": 120,
+        "height": 155,
         "transparent": true,
         "decorations": false,
         "visible": false
@@ -44,7 +44,7 @@
     },
     "macOSPrivateApi": true,
     "trayIcon": {
-      "iconPath": "icons/icon.ico",
+      "iconPath": "icons/icon.png",
       "id": "multipaste-tray"
     }
   },

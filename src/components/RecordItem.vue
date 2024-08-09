@@ -1,20 +1,28 @@
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import { useMouseInElement } from '@vueuse/core'
 import { ref } from 'vue'
 
-defineProps<{
-  item: string
+const props = defineProps<{
+  item: Multipaste.ClipboardRecord
 }>()
 
 const containerRef = ref<HTMLElement>()
 const { isOutside: isOutsideContainer } = useMouseInElement(containerRef)
+
+function copy() {
+  invoke('copy_record', { id: props.item.id })
+}
 </script>
 
 <template>
   <div
-    ref="containerRef" class="card relative box-border flex cursor-pointer items-center justify-between pa-4 text-sm"
+    ref="containerRef" class="relative box-border flex cursor-pointer items-center justify-between pa-4 text-sm card"
+    @click="copy"
   >
-    <div>{{ item }}</div>
+    <div>
+      {{ item.record_value }}
+    </div>
     <div v-if="!isOutsideContainer" class="absolute right-1 top-1 flex">
       <div class="btn">
         <i class="i-mdi-pin-outline rotate-45" />

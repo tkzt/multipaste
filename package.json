@@ -33,5 +33,11 @@
     "vue": "^3.4.35",
     "vue-router": "^4.4.2",
     "vue-tsc": "^1.8.27"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-autostart": "2.0.0-rc.0",
+    "@tauri-apps/plugin-fs": "2.0.0-rc.0",
+    "@tauri-apps/plugin-log": "2.0.0-rc.0",
+    "@tauri-apps/plugin-process": "2.0.0-rc.0"
   }
 }

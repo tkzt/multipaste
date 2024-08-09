@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watchEffect } from 'vue'
 import PerfectScrollbar from 'perfect-scrollbar'
 import 'perfect-scrollbar/css/perfect-scrollbar.css'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import RecordItem from '../components/RecordItem.vue'
 
 const itemsRef = ref<HTMLElement>()
 const ps = ref<PerfectScrollbar>()
 
-const items = ref(['Nisi ipsum eiusmod cillum eu dolore est cupidatat ea aute laboris eu do.', 'Nisi ipsum eiusmod cillum eu dolore est cupidatat ea aute laboris eu do.', 'yyy', 'xxx', 'yyy', 'xxx', 'yyy', 'xxx', 'yyy', 'Nisi ipsum eiusmod cillum eu dolore est cupidatat ea aute laboris eu do.', 'Nisi ipsum eiusmod cillum eu dolore est cupidatat ea aute laboris eu do.', 'yyy', 'xxx', 'yyy', 'xxx', 'yyy', 'xxx', 'yyy'])
+const items = ref<Multipaste.ClipboardRecord[]>([])
 
 watchEffect(() => {
   if (itemsRef.value && !ps.value) {
@@ -22,8 +23,8 @@ onBeforeUnmount(() => {
   ps.value?.destroy()
 })
 
-onMounted(async ()=>{
-  const res = await invoke('get_clipboard_records')
+listen<Multipaste.ClipboardRecord[]>('fill-records', async (event) => {
+  items.value = event.payload
 })
 </script>
 
@@ -33,10 +34,10 @@ onMounted(async ()=>{
       <i class="i-mdi-drag-horizontal block cursor-grab dark:c-white" data-tauri-drag-region />
     </div>
     <div class="box-border w-full px-2 pb-1">
-      <div class="box-border w-full flex rounded-lg bg-white/12 p-2">
+      <div class="box-border w-full flex rounded-lg bg-white/30 p-2 dark:bg-white/12">
         <i class="i-mdi-magnify mr-1 text-xl dark:text-gray-100" />
         <input
-          class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none placeholder-gray-400"
+          class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none placeholder-gray-600 dark:placeholder-gray-400"
           placeholder="Filter..."
         >
       </div>

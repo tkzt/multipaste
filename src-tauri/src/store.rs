@@ -7,12 +7,12 @@ use rusqlite::{
     Error as RusqliteError, Result,
 };
 use serde::Serialize;
-use std::sync::{Arc, Mutex};
+use std::{path::Path, sync::Arc};
 use tauri::{App, Manager, State};
 
 type DbPool = Arc<Pool<SqliteConnectionManager>>;
 
-const DB_PATH: &str = "./data.db";
+const DB_PATH: &str = "data.db";
 
 #[derive(Debug, Serialize)]
 pub enum RecordType {
@@ -26,6 +26,12 @@ impl ToString for RecordType {
             RecordType::Image => "image".to_string(),
             RecordType::Text => "text".to_string(),
         }
+    }
+}
+
+impl PartialEq for RecordType {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_string() == other.to_string()
     }
 }
 
@@ -62,6 +68,10 @@ pub struct ClipboardRecord {
 
 impl RecordStore {
     pub fn new(db_url: &str) -> Self {
+        let path = Path::new(db_url);
+        if let Some(path) = path.parent() {
+            let _ = std::fs::create_dir_all(path);
+        }
         let manager = SqliteConnectionManager::file(db_url);
         let pool = Pool::new(manager).expect("Failed to create pool.");
         RecordStore {
@@ -100,38 +110,49 @@ impl RecordStore {
         hash: Option<&str>,
     ) -> Result<()> {
         let conn = self.get_conn();
-        conn.execute(
+        let updated_rows = conn.execute(
             "
-        insert into clipboard_record (record_type, record_value, hash, updated_at)
-        values (?1, ?2, ?3, ?4)
-        on conflict(record_value) do update set
-            updated_at = ?4
-        on conflict(hash) do update set
-            updated_at = ?4
-        ",
-            params![
-                record_type.to_string(),
-                record_value,
-                hash,
-                Local::now().timestamp()
-            ],
+            update clipboard_record
+            set updated_at = ?3
+            where
+                case
+                    when ?2 is null then record_value = ?1
+                    else hash = ?2
+                end
+            ",
+            params![record_value, hash, Local::now().timestamp()],
         )?;
+
+        if updated_rows == 0 {
+            conn.execute(
+                "
+                insert into clipboard_record (record_type, record_value, hash, updated_at)
+                values (?1, ?2, ?3, ?4)
+                ",
+                params![
+                    record_type.to_string(),
+                    record_value,
+                    hash,
+                    Local::now().timestamp()
+                ],
+            )?;
+        }
         Ok(())
     }
 
-    pub fn pin_record(&self, id: u64) -> Result<()> {
+    pub fn pin(&self, id: &u64) -> Result<()> {
         let conn = self.get_conn();
         conn.execute("update clipboard_record set pinned = 1 where id = ?1", [id])?;
         Ok(())
     }
 
-    pub fn unpin_record(&self, id: u64) -> Result<()> {
+    pub fn unpin(&self, id: &u64) -> Result<()> {
         let conn = self.get_conn();
         conn.execute("update clipboard_record set pinned = 0 where id = ?1", [id])?;
         Ok(())
     }
 
-    pub fn delete(&self, id: u64) -> Result<()> {
+    pub fn delete(&self, id: &u64) -> Result<()> {
         let conn = self.get_conn();
         conn.execute("delete from clipboard_record where id = ?1", [id.clone()])?;
         Ok(())
@@ -158,19 +179,47 @@ impl RecordStore {
         let clipboard_record = records.collect::<Result<Vec<ClipboardRecord>>>()?;
         Ok(clipboard_record)
     }
+
+    pub fn get_record(&self, id: &u64) -> Result<ClipboardRecord> {
+        let conn = self.get_conn();
+        let row = conn.query_row(
+            "
+                select
+                    id, record_type, record_value, hash, updated_at, pinned
+                from clipboard_record
+                where id = ?1
+            ",
+            [id],
+            |row| {
+                Ok(ClipboardRecord {
+                    id: row.get(0)?,
+                    record_type: RecordType::from_string(&row.get::<_, String>(1)?)?,
+                    record_value: row.get(2)?,
+                    hash: row.get(3)?,
+                    updated_at: row.get::<_, u64>(4)?,
+                    pinned: row.get::<_, bool>(5)?,
+                })
+            },
+        )?;
+        Ok(row)
+    }
 }
 
-pub fn init(app: &App) -> Result<Arc<Mutex<RecordStore>>, Box<dyn std::error::Error>> {
-    let store = Arc::new(Mutex::new(RecordStore::new(DB_PATH)));
-    store.lock().unwrap().init()?;
-    app.handle().manage(store.clone());
-    Ok(store)
+pub fn init(app: &App) -> Result<Arc<RecordStore>, Box<dyn std::error::Error>> {
+    let db_url = if tauri::is_dev() {
+        DB_PATH
+    } else {
+        let db_path = app.path().app_data_dir().unwrap().join(DB_PATH);
+        &db_path.to_string_lossy().to_string()
+    };
+    let store = Arc::new(RecordStore::new(db_url));
+    store.init()?;
+    return Ok(store);
 }
 
 #[tauri::command]
-pub fn get_clipboard_records(store: State<Arc<Mutex<RecordStore>>>) -> Vec<ClipboardRecord> {
-    let store = store.lock().unwrap();
-    store.get_records().unwrap()
+pub fn pin_record(store: State<Arc<RecordStore>>, id: u64) {
+    let _ = store.pin(&id);
 }
 
 #[cfg(test)]
@@ -232,10 +281,20 @@ mod tests {
     }
 
     #[test]
-    fn test_02_toggle_pinned() -> Result<()> {
+    fn test_02_get_record() -> Result<()> {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
-        store.pin_record(data.record_id.clone())?;
+
+        let record = store.get_record(&data.record_id)?;
+        assert_eq!(record.id, data.record_id);
+        Ok(())
+    }
+
+    #[test]
+    fn test_03_toggle_pinned() -> Result<()> {
+        let store = SHARED_STORE.lock().unwrap();
+        let data = SHARED_DATA.lock().unwrap();
+        store.pin(&data.record_id)?;
         let records = store.get_records().ok().unwrap();
         let [record, ..] = records.as_slice() else {
             panic!("Empty records")
@@ -243,7 +302,7 @@ mod tests {
         assert_eq!(record.id, data.record_id);
         assert_eq!(record.pinned, true);
 
-        store.unpin_record(data.record_id.clone())?;
+        store.unpin(&data.record_id)?;
         let the_record_pinned: bool = store
             .get_conn()
             .query_row(
@@ -257,10 +316,10 @@ mod tests {
     }
 
     #[test]
-    fn test_03_delete_record() -> Result<()> {
+    fn test_04_delete_record() -> Result<()> {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
-        store.delete(data.record_id)?;
+        store.delete(&data.record_id)?;
         let result: Result<u64, Error> = store.get_conn().query_row(
             "select id from clipboard_record where id = ?1",
             [data.record_id],

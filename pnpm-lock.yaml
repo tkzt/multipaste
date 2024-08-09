@@ -4,6 +4,20 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+dependencies:
+  '@tauri-apps/plugin-autostart':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
+  '@tauri-apps/plugin-fs':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
+  '@tauri-apps/plugin-log':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
+  '@tauri-apps/plugin-process':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
+
 devDependencies:
   '@antfu/eslint-config':
     specifier: ^2.24.1
@@ -1365,7 +1379,6 @@ packages:
   /@tauri-apps/api@2.0.0-rc.0:
     resolution: {integrity: sha512-v454Qs3REHc3Za59U+/eSmBsdmF+3NE5+76+lFDaitVqN4ZglDHENDaMARYKGJVZuxiSkzyqG0SeG7lLQjVkPA==}
     engines: {node: '>= 18.18', npm: '>= 6.6.0', yarn: '>= 1.19.1'}
-    dev: true
 
   /@tauri-apps/cli-darwin-arm64@2.0.0-rc.0:
     resolution: {integrity: sha512-jpQc++6ESFUuBpoXvJNPTRtrmToMIByOynZ4K5SAwI9RkKUikSaDmlRZV0GisOVPT7TT08khk7MPtAQeFyjqwA==}
@@ -1474,11 +1487,35 @@ packages:
       '@tauri-apps/cli-win32-x64-msvc': 2.0.0-rc.0
     dev: true
 
+  /@tauri-apps/plugin-autostart@2.0.0-rc.0:
+    resolution: {integrity: sha512-V49lm++vhrMPPDGMtmOcbJLF4TYu78ZmAiMhyd4FFnbYlgin6ZTjiMCFEl4JKVy2lqP3C8DQvXf/gkUMuER7Iw==}
+    dependencies:
+      '@tauri-apps/api': 2.0.0-rc.0
+    dev: false
+
+  /@tauri-apps/plugin-fs@2.0.0-rc.0:
+    resolution: {integrity: sha512-74VCXEZlzTJ+Jv1V3KrV0qIHhSePpE/ljsF78rcEuvSfyTxLtt/Sb5CIUmVhFlKTRFOH9dX50T4dTZ3qFLyRnA==}
+    dependencies:
+      '@tauri-apps/api': 2.0.0-rc.0
+    dev: false
+
   /@tauri-apps/plugin-global-shortcut@2.0.0-rc.0:
     resolution: {integrity: sha512-rcefV4AG+vnbTtGc07hDn4Uj8u//NpuqHVg1CShACyiCS0q2sZrDVC3qPN3RGhzQyeIOPq4bY1kQRHODffKXZA==}
     dependencies:
       '@tauri-apps/api': 2.0.0-rc.0
     dev: true
+
+  /@tauri-apps/plugin-log@2.0.0-rc.0:
+    resolution: {integrity: sha512-ztKfzUcq03dtr08vBu+xcwIEPusP6mCpuLAt6kpXEwG+HvYsC8e1/KFFokn3xvfwD+oBJ3UTL1h4kdM30GAqGw==}
+    dependencies:
+      '@tauri-apps/api': 2.0.0-rc.0
+    dev: false
+
+  /@tauri-apps/plugin-process@2.0.0-rc.0:
+    resolution: {integrity: sha512-Z12D/kmQzG1vCVf+jLXPhPDUA0pEjFrsg4p0uwO2sotVLM9287IuTM+aIz9cuAYOxFLKcsnDG7amSCL9IfA1gw==}
+    dependencies:
+      '@tauri-apps/api': 2.0.0-rc.0
+    dev: false
 
   /@tauri-apps/plugin-shell@2.0.0-rc.0:
     resolution: {integrity: sha512-bhUcQcrqZoK8H1DFXapr5r1Z75oh6Kd5Tltz97XpZFLREEqp+KhN2Fvyh8r/fKAyenYsTYUIsDsyGdjdueuF9g==}

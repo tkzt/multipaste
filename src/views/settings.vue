@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { exit } from '@tauri-apps/plugin-process'
 </script>
 
 <template>
@@ -8,15 +9,18 @@
         <div class="text-sm">
           开机自启动
         </div>
-        <a-switch type="round" />
+        <a-switch type="round" disabled />
       </div>
-      <div class="tray-item card mt-2">
+      <div class="tray-item mt-2 card">
         <div class="shrink-0 text-sm">
           最大记录
         </div>
         <div class="box-border w-1/2 shrink-1">
-          <a-input type="number" theme="dark" />
+          <a-input type="number" theme="dark" disabled />
         </div>
+      </div>
+      <div class="mt-3 cursor-pointer text-center text-sm text-red-600" @click="exit(0)">
+        退出
       </div>
     </div>
   </div>

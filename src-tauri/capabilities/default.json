@@ -8,6 +8,11 @@
   "permissions": [
     "core:app:default",
     "global-shortcut:default",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:event:default",
+    "log:default",
+    "fs:default",
+    "autostart:default",
+    "process:default"
   ]
 }
