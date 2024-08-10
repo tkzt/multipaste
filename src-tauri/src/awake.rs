@@ -55,7 +55,7 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
 
                         let store = app_handle.state::<Arc<RecordStore>>();
                         app_handle
-                            .emit("fill-records", &store.get_records().unwrap_or_default())
+                            .emit("fill-records", &store.get_records("").unwrap_or_default())
                             .unwrap();
                     }
                 }

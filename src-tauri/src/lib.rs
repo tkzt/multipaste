@@ -71,8 +71,11 @@ pub fn run() {
         .on_window_event(on_window_event)
         .setup(setup)
         .invoke_handler(tauri::generate_handler![
+            store::filter_records,
             store::pin_record,
-            awake::copy_record
+            store::unpin_record,
+            store::delete_record,
+            awake::copy_record,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

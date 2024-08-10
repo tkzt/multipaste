@@ -3,32 +3,33 @@ import { invoke } from '@tauri-apps/api/core'
 import { useMouseInElement } from '@vueuse/core'
 import { ref } from 'vue'
 
-const props = defineProps<{
+defineProps<{
   item: Multipaste.ClipboardRecord
 }>()
-
+defineEmits(['pin', 'unpin', 'deleteRecord'])
 const containerRef = ref<HTMLElement>()
 const { isOutside: isOutsideContainer } = useMouseInElement(containerRef)
-
-function copy() {
-  invoke('copy_record', { id: props.item.id })
-}
 </script>
 
 <template>
   <div
     ref="containerRef" class="relative box-border flex cursor-pointer items-center justify-between pa-4 text-sm card"
-    @click="copy"
+    @click="invoke('copy_record', { id: item.id })"
   >
     <div class="w-full overflow-hidden">
       {{ item.record_value }}
     </div>
-    <div v-if="!isOutsideContainer" class="absolute right-1 top-1 flex">
-      <div class="btn">
-        <i-mdi-pin-outline class="rotate-45" />
-      </div>
-      <div class="btn">
+    <div class="absolute right-1 top-1 flex">
+      <div v-if="!isOutsideContainer" class="btn" @click.stop="$emit('deleteRecord', item.id)">
         <i-mdi-close />
+      </div>
+      <div
+        v-if="!isOutsideContainer || item.pinned"
+        class="btn"
+        :class="{ 'bg-[rgba(0,0,0,.05)] dark:bg-[rgba(255,255,255,.25)]': item.pinned }"
+        @click.stop="!item.pinned ? $emit('pin', item.id) : $emit('unpin', item.id)"
+      >
+        <i-mdi-pin-outline class="rotate-45" />
       </div>
     </div>
   </div>

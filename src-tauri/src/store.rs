@@ -158,14 +158,21 @@ impl RecordStore {
         Ok(())
     }
 
-    pub fn get_records(&self) -> Result<Vec<ClipboardRecord>> {
+    pub fn get_records(&self, keyword: &str) -> Result<Vec<ClipboardRecord>> {
         let conn = self.get_conn();
-        let mut stmt = conn.prepare(
-            "select id, record_type, record_value, hash, updated_at, pinned
-        from clipboard_record order by pinned desc, updated_at desc",
-        )?;
+        let mut stmt = conn.prepare("
+            select
+                id, record_type, record_value, hash, updated_at, pinned
+            from clipboard_record
+            where
+                lower(record_value) like ?1
+            order by
+                pinned desc, updated_at desc
+        ")?;
 
-        let records = stmt.query_map((), |row| {
+        let records = stmt.query_map(
+            [format!("%{}%", keyword.to_lowercase())],
+            |row| {
             Ok(ClipboardRecord {
                 id: row.get(0)?,
                 record_type: RecordType::from_string(&row.get::<_, String>(1)?)?,
@@ -219,7 +226,22 @@ pub fn init(app: &App) -> Result<Arc<RecordStore>, Box<dyn std::error::Error>> {
 
 #[tauri::command]
 pub fn pin_record(store: State<Arc<RecordStore>>, id: u64) {
-    let _ = store.pin(&id);
+    store.pin(&id).unwrap();
+}
+
+#[tauri::command]
+pub fn unpin_record(store: State<Arc<RecordStore>>, id: u64) {
+    store.unpin(&id).unwrap();
+}
+
+#[tauri::command]
+pub fn delete_record(store: State<Arc<RecordStore>>, id: u64) {
+    store.delete(&id).unwrap();
+}
+
+#[tauri::command]
+pub fn filter_records(store: State<Arc<RecordStore>>, keyword: String) -> Vec<ClipboardRecord> {
+    store.get_records(&keyword).unwrap()
 }
 
 #[cfg(test)]
@@ -287,6 +309,12 @@ mod tests {
 
         let record = store.get_record(&data.record_id)?;
         assert_eq!(record.id, data.record_id);
+
+        let records = store.get_records("foo")?;
+        assert!(records.iter().any(|record| record.record_value == "cached/foo.png"));
+
+        let records = store.get_records("Dolor culpa ut nisi qui veniam proident Lorem proident enim ea. Consequat adipisicing officia consectetur do sit deserunt. Veniam nostrud laboris ipsum sunt deserunt ex nulla minim nostrud voluptate consequat excepteur. Consequat tempor sint adipisicing minim anim. Ad eu nisi id in culpa qui ut eiusmod minim veniam ea. Esse non voluptate eiusmod officia duis consectetur dolore eu nulla ullamco labore id nulla.")?;
+        assert_eq!(records.len(), 0);
         Ok(())
     }
 
@@ -295,7 +323,7 @@ mod tests {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
         store.pin(&data.record_id)?;
-        let records = store.get_records().ok().unwrap();
+        let records = store.get_records("").ok().unwrap();
         let [record, ..] = records.as_slice() else {
             panic!("Empty records")
         };

@@ -9,14 +9,14 @@ import { exit } from '@tauri-apps/plugin-process'
         <div class="text-sm">
           开机自启动
         </div>
-        <a-switch type="round" disabled />
+        <input type="checkbox" disabled>
       </div>
       <div class="tray-item mt-2 card">
         <div class="shrink-0 text-sm">
           最大记录
         </div>
-        <div class="box-border w-1/2 shrink-1">
-          <a-input type="number" theme="dark" disabled />
+        <div class="box-border w-1/2 shrink-1 overflow-hidden">
+          <input type="number" disabled>
         </div>
       </div>
       <div class="mt-2 cursor-pointer bg-red-600 text-center text-sm text-white hover:(bg-red-700 dark:bg-red-500) card" @click="exit(0)">
