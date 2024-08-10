@@ -12,14 +12,17 @@
   "devDependencies": {
     "@antfu/eslint-config": "^2.24.1",
     "@arco-design/web-vue": "^2.56.0",
-    "@iconify-json/mdi": "^1.1.67",
+    "@iconify-json/mdi": "^1.1.68",
     "@tauri-apps/api": ">=2.0.0-rc.0",
     "@tauri-apps/cli": ">=2.0.0-rc.0",
+    "@tauri-apps/plugin-autostart": "2.0.0-rc.0",
+    "@tauri-apps/plugin-fs": "2.0.0-rc.0",
     "@tauri-apps/plugin-global-shortcut": "2.0.0-rc.0",
+    "@tauri-apps/plugin-log": "2.0.0-rc.0",
+    "@tauri-apps/plugin-process": "2.0.0-rc.0",
     "@tauri-apps/plugin-shell": ">=2.0.0-rc.0",
     "@types/node": "^18.19.43",
     "@unocss/eslint-plugin": "^0.61.9",
-    "@unocss/preset-icons": "^0.61.9",
     "@vitejs/plugin-vue": "^4.6.2",
     "@vueuse/core": "^10.11.0",
     "eslint": "^9.8.0",
@@ -28,16 +31,11 @@
     "typescript": "^4.9.5",
     "unocss": "^0.61.9",
     "unplugin-auto-import": "^0.18.2",
+    "unplugin-icons": "^0.19.2",
     "unplugin-vue-components": "^0.27.3",
     "vite": "^5.3.5",
     "vue": "^3.4.35",
     "vue-router": "^4.4.2",
     "vue-tsc": "^1.8.27"
-  },
-  "dependencies": {
-    "@tauri-apps/plugin-autostart": "2.0.0-rc.0",
-    "@tauri-apps/plugin-fs": "2.0.0-rc.0",
-    "@tauri-apps/plugin-log": "2.0.0-rc.0",
-    "@tauri-apps/plugin-process": "2.0.0-rc.0"
   }
 }

@@ -20,15 +20,15 @@ function copy() {
     ref="containerRef" class="relative box-border flex cursor-pointer items-center justify-between pa-4 text-sm card"
     @click="copy"
   >
-    <div>
+    <div class="w-full overflow-hidden">
       {{ item.record_value }}
     </div>
     <div v-if="!isOutsideContainer" class="absolute right-1 top-1 flex">
       <div class="btn">
-        <i class="i-mdi-pin-outline rotate-45" />
+        <i-mdi-pin-outline class="rotate-45" />
       </div>
       <div class="btn">
-        <i class="i-mdi-close" />
+        <i-mdi-close />
       </div>
     </div>
   </div>

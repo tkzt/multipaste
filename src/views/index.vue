@@ -2,7 +2,6 @@
 import { nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watchEffect } from 'vue'
 import PerfectScrollbar from 'perfect-scrollbar'
 import 'perfect-scrollbar/css/perfect-scrollbar.css'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import RecordItem from '../components/RecordItem.vue'
 
@@ -31,13 +30,13 @@ listen<Multipaste.ClipboardRecord[]>('fill-records', async (event) => {
 <template>
   <div class="relative h-100vh flex flex-col overflow-hidden rd-lg">
     <div class="h-10 flex shrink-0 items-center justify-center text-lg" data-tauri-drag-region>
-      <i class="i-mdi-drag-horizontal block cursor-grab dark:c-white" data-tauri-drag-region />
+      <i-mdi-drag-horizontal class="block cursor-grab dark:c-white" data-tauri-drag-region />
     </div>
     <div class="box-border w-full px-2 pb-1">
       <div class="box-border w-full flex rounded-lg bg-white/30 p-2 dark:bg-white/12">
-        <i class="i-mdi-magnify mr-1 text-xl dark:text-gray-100" />
+        <i-mdi-magnify class="mr-1 text-xl dark:text-gray-100" />
         <input
-          class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none placeholder-gray-600 dark:placeholder-gray-400"
+          class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none placeholder-gray-600 dark:(placeholder-gray-200)"
           placeholder="Filter..."
         >
       </div>

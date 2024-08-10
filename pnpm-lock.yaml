@@ -4,20 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  '@tauri-apps/plugin-autostart':
-    specifier: 2.0.0-rc.0
-    version: 2.0.0-rc.0
-  '@tauri-apps/plugin-fs':
-    specifier: 2.0.0-rc.0
-    version: 2.0.0-rc.0
-  '@tauri-apps/plugin-log':
-    specifier: 2.0.0-rc.0
-    version: 2.0.0-rc.0
-  '@tauri-apps/plugin-process':
-    specifier: 2.0.0-rc.0
-    version: 2.0.0-rc.0
-
 devDependencies:
   '@antfu/eslint-config':
     specifier: ^2.24.1
@@ -26,15 +12,27 @@ devDependencies:
     specifier: ^2.56.0
     version: 2.56.0(vue@3.4.35)
   '@iconify-json/mdi':
-    specifier: ^1.1.67
-    version: 1.1.67
+    specifier: ^1.1.68
+    version: 1.1.68
   '@tauri-apps/api':
     specifier: '>=2.0.0-rc.0'
     version: 2.0.0-rc.0
   '@tauri-apps/cli':
     specifier: '>=2.0.0-rc.0'
     version: 2.0.0-rc.0
+  '@tauri-apps/plugin-autostart':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
+  '@tauri-apps/plugin-fs':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
   '@tauri-apps/plugin-global-shortcut':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
+  '@tauri-apps/plugin-log':
+    specifier: 2.0.0-rc.0
+    version: 2.0.0-rc.0
+  '@tauri-apps/plugin-process':
     specifier: 2.0.0-rc.0
     version: 2.0.0-rc.0
   '@tauri-apps/plugin-shell':
@@ -46,9 +44,6 @@ devDependencies:
   '@unocss/eslint-plugin':
     specifier: ^0.61.9
     version: 0.61.9(eslint@9.8.0)(typescript@4.9.5)
-  '@unocss/preset-icons':
-    specifier: ^0.61.9
-    version: 0.61.9
   '@vitejs/plugin-vue':
     specifier: ^4.6.2
     version: 4.6.2(vite@5.3.5)(vue@3.4.35)
@@ -73,6 +68,9 @@ devDependencies:
   unplugin-auto-import:
     specifier: ^0.18.2
     version: 0.18.2(@vueuse/core@10.11.0)
+  unplugin-icons:
+    specifier: ^0.19.2
+    version: 0.19.2(@vue/compiler-sfc@3.4.35)
   unplugin-vue-components:
     specifier: ^0.27.3
     version: 0.27.3(vue@3.4.35)
@@ -1069,8 +1067,8 @@ packages:
     engines: {node: '>=18.18'}
     dev: true
 
-  /@iconify-json/mdi@1.1.67:
-    resolution: {integrity: sha512-00nllHES8hyACwIfgySlQgAE6MKgpr2wsKfpifMiZWZ9aXC5l4Jb0lR3lJSWwXgOW6kzAOdzC3T+2VOfBBZ13A==}
+  /@iconify-json/mdi@1.1.68:
+    resolution: {integrity: sha512-7//TKCiXLU6kNWeOJRTBbisofVO7rF1sD1TZTL4/V9nqlmVNczQ5IOY0GgKOTsitkcTnX9GXgrgbjw3OI5B69w==}
     dependencies:
       '@iconify/types': 2.0.0
     dev: true
@@ -1379,6 +1377,7 @@ packages:
   /@tauri-apps/api@2.0.0-rc.0:
     resolution: {integrity: sha512-v454Qs3REHc3Za59U+/eSmBsdmF+3NE5+76+lFDaitVqN4ZglDHENDaMARYKGJVZuxiSkzyqG0SeG7lLQjVkPA==}
     engines: {node: '>= 18.18', npm: '>= 6.6.0', yarn: '>= 1.19.1'}
+    dev: true
 
   /@tauri-apps/cli-darwin-arm64@2.0.0-rc.0:
     resolution: {integrity: sha512-jpQc++6ESFUuBpoXvJNPTRtrmToMIByOynZ4K5SAwI9RkKUikSaDmlRZV0GisOVPT7TT08khk7MPtAQeFyjqwA==}
@@ -1491,13 +1490,13 @@ packages:
     resolution: {integrity: sha512-V49lm++vhrMPPDGMtmOcbJLF4TYu78ZmAiMhyd4FFnbYlgin6ZTjiMCFEl4JKVy2lqP3C8DQvXf/gkUMuER7Iw==}
     dependencies:
       '@tauri-apps/api': 2.0.0-rc.0
-    dev: false
+    dev: true
 
   /@tauri-apps/plugin-fs@2.0.0-rc.0:
     resolution: {integrity: sha512-74VCXEZlzTJ+Jv1V3KrV0qIHhSePpE/ljsF78rcEuvSfyTxLtt/Sb5CIUmVhFlKTRFOH9dX50T4dTZ3qFLyRnA==}
     dependencies:
       '@tauri-apps/api': 2.0.0-rc.0
-    dev: false
+    dev: true
 
   /@tauri-apps/plugin-global-shortcut@2.0.0-rc.0:
     resolution: {integrity: sha512-rcefV4AG+vnbTtGc07hDn4Uj8u//NpuqHVg1CShACyiCS0q2sZrDVC3qPN3RGhzQyeIOPq4bY1kQRHODffKXZA==}
@@ -1509,13 +1508,13 @@ packages:
     resolution: {integrity: sha512-ztKfzUcq03dtr08vBu+xcwIEPusP6mCpuLAt6kpXEwG+HvYsC8e1/KFFokn3xvfwD+oBJ3UTL1h4kdM30GAqGw==}
     dependencies:
       '@tauri-apps/api': 2.0.0-rc.0
-    dev: false
+    dev: true
 
   /@tauri-apps/plugin-process@2.0.0-rc.0:
     resolution: {integrity: sha512-Z12D/kmQzG1vCVf+jLXPhPDUA0pEjFrsg4p0uwO2sotVLM9287IuTM+aIz9cuAYOxFLKcsnDG7amSCL9IfA1gw==}
     dependencies:
       '@tauri-apps/api': 2.0.0-rc.0
-    dev: false
+    dev: true
 
   /@tauri-apps/plugin-shell@2.0.0-rc.0:
     resolution: {integrity: sha512-bhUcQcrqZoK8H1DFXapr5r1Z75oh6Kd5Tltz97XpZFLREEqp+KhN2Fvyh8r/fKAyenYsTYUIsDsyGdjdueuF9g==}
@@ -4494,6 +4493,38 @@ packages:
       unplugin: 1.12.0
     transitivePeerDependencies:
       - rollup
+    dev: true
+
+  /unplugin-icons@0.19.2(@vue/compiler-sfc@3.4.35):
+    resolution: {integrity: sha512-QkQJ/Iz3PFr/EoiOvFUQYvqbbJZ7Vs3hObKAFHh5eywTU1PQagSNeXKGRD+JpzXSTnUNLtG0u/xEA5Ec2OeANQ==}
+    peerDependencies:
+      '@svgr/core': '>=7.0.0'
+      '@svgx/core': ^1.0.1
+      '@vue/compiler-sfc': ^3.0.2 || ^2.7.0
+      vue-template-compiler: ^2.6.12
+      vue-template-es2015-compiler: ^1.9.0
+    peerDependenciesMeta:
+      '@svgr/core':
+        optional: true
+      '@svgx/core':
+        optional: true
+      '@vue/compiler-sfc':
+        optional: true
+      vue-template-compiler:
+        optional: true
+      vue-template-es2015-compiler:
+        optional: true
+    dependencies:
+      '@antfu/install-pkg': 0.3.3
+      '@antfu/utils': 0.7.10
+      '@iconify/utils': 2.1.29
+      '@vue/compiler-sfc': 3.4.35
+      debug: 4.3.6
+      kolorist: 1.8.0
+      local-pkg: 0.5.0
+      unplugin: 1.12.0
+    transitivePeerDependencies:
+      - supports-color
     dev: true
 
   /unplugin-vue-components@0.27.3(vue@3.4.35):

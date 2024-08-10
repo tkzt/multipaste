@@ -11,6 +11,7 @@
   "app": {
     "windows": [
       {
+        "title": "Multipaste",
         "label": "main",
         "url": "/",
         "fullscreen": false,
@@ -22,12 +23,13 @@
         "visible": false
       },
       {
+        "title": "Settings",
         "label": "settings",
         "url": "/settings",
         "fullscreen": false,
         "resizable": false,
-        "width": 200,
-        "height": 155,
+        "width": 180,
+        "height": 165,
         "transparent": true,
         "decorations": false,
         "visible": false
@@ -44,7 +46,7 @@
     },
     "macOSPrivateApi": true,
     "trayIcon": {
-      "iconPath": "icons/icon.png",
+      "iconPath": "icons/tray-icon.png",
       "id": "multipaste-tray"
     }
   },

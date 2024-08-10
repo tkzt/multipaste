@@ -2,14 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clipboard;
-mod shortcut;
+mod awake;
 mod store;
 mod tray;
+mod ns;
 
 use tauri::{ActivationPolicy, App, Manager, Window, WindowEvent};
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_positioner::{Position, WindowExt};
-#[cfg(target_os = "macos")]
 use window_vibrancy::NSVisualEffectMaterial;
 
 fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -17,10 +17,8 @@ fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let window = app.app_handle().get_webview_window(label).unwrap();
 
         // to hide icon in dock
-        #[cfg(target_os = "macos")]
         app.set_activation_policy(ActivationPolicy::Accessory);
 
-        #[cfg(target_os = "macos")]
         window_vibrancy::apply_vibrancy(
             &window,
             NSVisualEffectMaterial::HudWindow,
@@ -28,17 +26,14 @@ fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
             Some(12.0),
         )
         .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
-
-        #[cfg(target_os = "windows")]
-        window_vibrancy::apply_blur(&window, Some((18, 18, 18, 125)))
-            .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
     }
 
     tray::init(app);
     let store = store::init(app)?;
     app.handle().manage(store.clone());
     clipboard::listen(store);
-    shortcut::init(app)?;
+    awake::init(app)?;
+
     Ok(())
 }
 
@@ -77,7 +72,7 @@ pub fn run() {
         .setup(setup)
         .invoke_handler(tauri::generate_handler![
             store::pin_record,
-            shortcut::copy_record
+            awake::copy_record
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

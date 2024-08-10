@@ -19,7 +19,7 @@ import { exit } from '@tauri-apps/plugin-process'
           <a-input type="number" theme="dark" disabled />
         </div>
       </div>
-      <div class="mt-3 cursor-pointer text-center text-sm text-red-600" @click="exit(0)">
+      <div class="mt-2 cursor-pointer bg-red-600 text-center text-sm text-white hover:(bg-red-700 dark:bg-red-500) card" @click="exit(0)">
         退出
       </div>
     </div>

@@ -9,6 +9,10 @@ declare module 'vue' {
   export interface GlobalComponents {
     AInput: typeof import('@arco-design/web-vue')['Input']
     ASwitch: typeof import('@arco-design/web-vue')['Switch']
+    IMdiClose: typeof import('~icons/mdi/close')['default']
+    IMdiDragHorizontal: typeof import('~icons/mdi/drag-horizontal')['default']
+    IMdiMagnify: typeof import('~icons/mdi/magnify')['default']
+    IMdiPinOutline: typeof import('~icons/mdi/pin-outline')['default']
     RecordItem: typeof import('./src/components/RecordItem.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
