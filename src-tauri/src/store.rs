@@ -6,18 +6,30 @@ use rusqlite::{
     types::{FromSqlError, Type as RSType},
     Error as RusqliteError, Result,
 };
-use serde::Serialize;
-use std::{path::Path, sync::Arc};
+use serde::{Serialize, Serializer};
+use std::{path::{Path, PathBuf}, sync::Arc};
 use tauri::{App, Manager, State};
 
 type DbPool = Arc<Pool<SqliteConnectionManager>>;
 
 const DB_PATH: &str = "data.db";
+const IMG_DIR_PATH: &str = "images";
+const MAX_RECORDS: usize = 200;
+const MIN_TEXT_HASHING_SIZE: usize = 50;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub enum RecordType {
     Image,
     Text,
+}
+
+impl Serialize for RecordType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        serializer.serialize_str(&self.to_string())
+    }
 }
 
 impl ToString for RecordType {
@@ -52,6 +64,7 @@ impl RecordType {
 #[derive(Debug)]
 pub struct RecordStore {
     pool: DbPool,
+    pub img_dir: PathBuf
 }
 
 #[derive(Debug, Serialize)]
@@ -59,7 +72,7 @@ pub struct ClipboardRecord {
     pub id: u64,
     pub record_type: RecordType,
     // For image, the record value will be like
-    // <cache_dir>/<md5_hash>.png
+    // <IMG_DIR>/<md5_hash>.png
     pub record_value: String,
     pub hash: Option<String>,
     pub updated_at: u64,
@@ -67,15 +80,12 @@ pub struct ClipboardRecord {
 }
 
 impl RecordStore {
-    pub fn new(db_url: &str) -> Self {
-        let path = Path::new(db_url);
-        if let Some(path) = path.parent() {
-            let _ = std::fs::create_dir_all(path);
-        }
+    pub fn new(db_url: PathBuf, img_dir: PathBuf) -> Self {
         let manager = SqliteConnectionManager::file(db_url);
         let pool = Pool::new(manager).expect("Failed to create pool.");
         RecordStore {
             pool: Arc::new(pool),
+            img_dir
         }
     }
 
@@ -103,12 +113,12 @@ impl RecordStore {
         Ok(())
     }
 
-    pub fn save(
+    fn save(
         &self,
         record_type: &RecordType,
         record_value: &str,
         hash: Option<&str>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let conn = self.get_conn();
         let updated_rows = conn.execute(
             "
@@ -137,6 +147,40 @@ impl RecordStore {
                 ],
             )?;
         }
+        Ok(updated_rows>0)
+    }
+
+    pub fn save_text(&self, text: &str) -> Result<()> {
+        let text_hash = if text.len() <= MIN_TEXT_HASHING_SIZE {
+            None
+        } else {
+            let text_hash = format!("{:x}", md5::compute(text.as_bytes()));
+            Some(text_hash)
+        };
+        self.save(
+            &RecordType::Text, 
+            text,
+            text_hash.as_deref()
+        )?;
+        Ok(())
+    }
+
+    pub fn save_image(
+        &self,
+        image_bytes: &[u8]
+    ) -> Result<()> {
+        let image_hash = format!("{:x}", md5::compute(image_bytes));
+        let image_path = self.img_dir.join(format!("{}.png", image_hash));
+
+        let exists = self.save(
+            &RecordType::Image, 
+            image_path.to_str().unwrap(),
+            Some(&image_hash)
+        )?;
+        if !exists { 
+            std::fs::write(&image_path, image_bytes).unwrap();
+        }
+        
         Ok(())
     }
 
@@ -213,13 +257,14 @@ impl RecordStore {
 }
 
 pub fn init(app: &App) -> Result<Arc<RecordStore>, Box<dyn std::error::Error>> {
-    let db_url = if tauri::is_dev() {
-        DB_PATH
-    } else {
-        let db_path = app.path().app_data_dir().unwrap().join(DB_PATH);
-        &db_path.to_string_lossy().to_string()
-    };
-    let store = Arc::new(RecordStore::new(db_url));
+    let app_data_path = app.path().app_data_dir().unwrap();
+    let db_url = app_data_path.join(DB_PATH);
+    let img_dir = app_data_path.join(IMG_DIR_PATH);
+    std::fs::create_dir_all(&img_dir).unwrap();
+    if let Some(path) = db_url.parent() {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    let store = Arc::new(RecordStore::new(db_url, img_dir));
     store.init()?;
     return Ok(store);
 }
@@ -236,6 +281,10 @@ pub fn unpin_record(store: State<Arc<RecordStore>>, id: u64) {
 
 #[tauri::command]
 pub fn delete_record(store: State<Arc<RecordStore>>, id: u64) {
+    let record = store.get_record(&id).unwrap();
+    if record.record_type == RecordType::Image {
+        std::fs::remove_file(store.img_dir.join(record.record_value)).unwrap();
+    }
     store.delete(&id).unwrap();
 }
 
@@ -247,58 +296,104 @@ pub fn filter_records(store: State<Arc<RecordStore>>, keyword: String) -> Vec<Cl
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::{DynamicImage, ImageBuffer, Rgba, ImageOutputFormat};
     use rusqlite::Error;
-    use std::{sync::Mutex, thread::sleep, time::Duration};
+    use std::{io::Cursor, sync::Mutex, thread::sleep, time::Duration};
+
+    const TEXT_VALUE: &str = "foo";
+    const SOME_TEXT_NOT_IN_DB: &str = "Dolor culpa ut nisi qui veniam proident Lorem proident enim ea. Consequat adipisicing officia consectetur do sit deserunt. Veniam nostrud laboris ipsum sunt deserunt ex nulla minim nostrud voluptate consequat excepteur. Consequat tempor sint adipisicing minim anim. Ad eu nisi id in culpa qui ut eiusmod minim veniam ea. Esse non voluptate eiusmod officia duis consectetur dolore eu nulla ullamco labore id nulla.";
 
     struct SharedData {
-        record_id: u64,
+        text_record_id: u64,
+        img_record_id: u64
     }
 
     lazy_static::lazy_static! {
-        static ref SHARED_STORE: Mutex<RecordStore> = Mutex::new(RecordStore::new("./data.db"));
-        static ref SHARED_DATA: Mutex<SharedData> = Mutex::new(SharedData {record_id: 0});
+        static ref SHARED_STORE: Mutex<RecordStore> = Mutex::new(RecordStore::new(
+            Path::new(DB_PATH).to_path_buf(),
+            Path::new(IMG_DIR_PATH).to_path_buf())
+        );
+        static ref SHARED_DATA: Mutex<SharedData> = Mutex::new(SharedData {text_record_id: 0, img_record_id: 0 });
     }
 
     #[test]
-    fn test_01_save_text() -> Result<()> {
+    fn test_01_save() -> Result<()> {
         let store = SHARED_STORE.lock().unwrap();
         let mut data = SHARED_DATA.lock().unwrap();
         store.init()?;
-        let value = "cached/foo.png";
-
-        store.save(&RecordType::Image, value, Some("foo"))?;
         let conn = store.get_conn();
 
-        let (record_id, updated_at) = conn
+        // text
+        store.save_text(TEXT_VALUE)?;
+        let record_id = conn
             .query_row(
-                "select id, updated_at from clipboard_record where record_value = ?1",
-                [value],
+                "
+                select
+                    id
+                from
+                    clipboard_record
+                where
+                    record_value = ?1
+                    and record_type = 'text'
+                ",
+                [TEXT_VALUE],
                 |row| {
                     let id: u64 = row.get(0)?;
-                    let updated_at: u64 = row.get(1)?;
-                    Ok((id, updated_at))
+                    Ok(id)
                 },
             )
             .unwrap();
         assert!(record_id > 0);
-        sleep(Duration::from_secs(1));
 
-        store.save(&RecordType::Image, value, Some("foo"))?;
-        let (record_id_repeat, updated_at_repeat) = conn
-            .query_row(
-                "select id, updated_at from clipboard_record where record_value = ?1",
-                [value],
+        // image
+        let img_value = ImageBuffer::from_fn(8, 8, |x, y| {
+            if (x * y) % 2 == 0 {
+                Rgba([255, 0, 0, 255])
+            } else {
+                Rgba([0, 255, 0, 255])
+            }
+        });
+        let dynamic_image = DynamicImage::ImageRgba8(img_value);
+        let mut img_bytes: Vec<u8> = Vec::new();
+        dynamic_image.write_to(&mut Cursor::new(&mut img_bytes), ImageOutputFormat::Png).unwrap();
+
+        store.save_image(&img_bytes)?;
+        let img_hash = format!("{:x}", md5::compute(&img_bytes));
+        let query_image_res = || -> (u64, u64) {
+            conn.query_row(
+                "
+                select
+                    id, updated_at
+                from
+                    clipboard_record
+                where
+                    hash = ?1
+                    and record_type = 'image'
+                ",
+                [&img_hash],
                 |row| {
                     let id: u64 = row.get(0)?;
                     let updated_at: u64 = row.get(1)?;
                     Ok((id, updated_at))
                 },
             )
-            .unwrap();
-        assert_eq!(record_id, record_id_repeat);
+            .unwrap()
+        };
+        let (img_record_id, updated_at) = query_image_res();
+        assert!(record_id > 0);
+
+        // Make sure the time interval between the first saving and the second
+        // is greater than 1 second.
+        sleep(Duration::from_secs(1));
+
+        // Check repeat saving
+        store.save_image(&img_bytes)?;
+        let (img_record_id_repeat, updated_at_repeat) = query_image_res();
+        assert_eq!(img_record_id, img_record_id_repeat);
         assert_ne!(updated_at, updated_at_repeat);
 
-        data.record_id = record_id;
+        data.text_record_id = record_id;
+        data.img_record_id = img_record_id;
         Ok(())
     }
 
@@ -307,13 +402,13 @@ mod tests {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
 
-        let record = store.get_record(&data.record_id)?;
-        assert_eq!(record.id, data.record_id);
+        let record = store.get_record(&data.text_record_id)?;
+        assert_eq!(record.id, data.text_record_id);
 
-        let records = store.get_records("foo")?;
-        assert!(records.iter().any(|record| record.record_value == "cached/foo.png"));
+        let records = store.get_records(TEXT_VALUE)?;
+        assert!(records.iter().any(|record| record.record_value == TEXT_VALUE));
 
-        let records = store.get_records("Dolor culpa ut nisi qui veniam proident Lorem proident enim ea. Consequat adipisicing officia consectetur do sit deserunt. Veniam nostrud laboris ipsum sunt deserunt ex nulla minim nostrud voluptate consequat excepteur. Consequat tempor sint adipisicing minim anim. Ad eu nisi id in culpa qui ut eiusmod minim veniam ea. Esse non voluptate eiusmod officia duis consectetur dolore eu nulla ullamco labore id nulla.")?;
+        let records = store.get_records(SOME_TEXT_NOT_IN_DB)?;
         assert_eq!(records.len(), 0);
         Ok(())
     }
@@ -322,20 +417,20 @@ mod tests {
     fn test_03_toggle_pinned() -> Result<()> {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
-        store.pin(&data.record_id)?;
+        store.pin(&data.text_record_id)?;
         let records = store.get_records("").ok().unwrap();
         let [record, ..] = records.as_slice() else {
             panic!("Empty records")
         };
-        assert_eq!(record.id, data.record_id);
+        assert_eq!(record.id, data.text_record_id);
         assert_eq!(record.pinned, true);
 
-        store.unpin(&data.record_id)?;
+        store.unpin(&data.text_record_id)?;
         let the_record_pinned: bool = store
             .get_conn()
             .query_row(
                 "select pinned from clipboard_record where id = ?1",
-                [data.record_id],
+                [data.text_record_id],
                 |r| r.get(0),
             )
             .unwrap();
@@ -347,10 +442,11 @@ mod tests {
     fn test_04_delete_record() -> Result<()> {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
-        store.delete(&data.record_id)?;
+        store.delete(&data.text_record_id)?;
+        store.delete(&data.img_record_id)?;
         let result: Result<u64, Error> = store.get_conn().query_row(
-            "select id from clipboard_record where id = ?1",
-            [data.record_id],
+            "select id from clipboard_record where id = ?1 or id = ?2",
+            [data.text_record_id, data.img_record_id],
             |r| r.get(0),
         );
         assert!(matches!(result, Err(Error::QueryReturnedNoRows)));

@@ -13,6 +13,8 @@
     "log:default",
     "fs:default",
     "autostart:default",
-    "process:default"
+    "process:default",
+    "core:path:default",
+    "core:path:allow-resolve"
   ]
 }

@@ -33,6 +33,9 @@ tauri-plugin-fs = "2.0.0-rc.0"
 tauri-plugin-process = "2.0.0-rc.0"
 cocoa = "0.25.0"
 objc = "0.2.7"
+md5 = "0.7.0"
+log = "0.4.22"
+image = "0.24.9"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

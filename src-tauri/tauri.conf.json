@@ -36,18 +36,19 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: https://asset.localhost",
       "assetProtocol": {
         "enable": true,
         "scope": [
-          "assets"
+          "$APPDATA/images/*"
         ]
       }
     },
     "macOSPrivateApi": true,
     "trayIcon": {
       "iconPath": "icons/tray-icon.png",
-      "id": "multipaste-tray"
+      "id": "multipaste-tray",
+      "iconAsTemplate": true
     }
   },
   "bundle": {

@@ -2,6 +2,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useMouseInElement } from '@vueuse/core'
 import { ref } from 'vue'
+import AsyncImage from './AsyncImage.vue'
 
 defineProps<{
   item: Multipaste.ClipboardRecord
@@ -9,6 +10,13 @@ defineProps<{
 defineEmits(['pin', 'unpin', 'deleteRecord'])
 const containerRef = ref<HTMLElement>()
 const { isOutside: isOutsideContainer } = useMouseInElement(containerRef)
+
+function truncateText(text: string) {
+  if (text.length > 150) {
+    return `${text.slice(0, 150)}...`
+  }
+  return text
+}
 </script>
 
 <template>
@@ -17,7 +25,15 @@ const { isOutside: isOutsideContainer } = useMouseInElement(containerRef)
     @click="invoke('copy_record', { id: item.id })"
   >
     <div class="w-full overflow-hidden">
-      {{ item.record_value }}
+      <template v-if="item.record_type === 'text'">
+        {{ truncateText(item.record_value) }}
+      </template>
+      <suspense v-else>
+        <template #fallback>
+          Loading
+        </template>
+        <AsyncImage :url="item.record_value" />
+      </suspense>
     </div>
     <div class="absolute right-1 top-1 flex">
       <div v-if="!isOutsideContainer" class="btn" @click.stop="$emit('deleteRecord', item.id)">

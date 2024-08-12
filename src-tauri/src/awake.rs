@@ -21,8 +21,9 @@ struct AwakeState {
 fn paste() {
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
     enigo.key(Key::Meta, Press).unwrap();
-    thread::sleep(Duration::from_millis(370));
+    thread::sleep(Duration::from_millis(100));
     enigo.key(Key::Unicode('v'), Click).unwrap();
+    thread::sleep(Duration::from_millis(100));
     enigo.key(Key::Meta, Release).unwrap();
 }
 
@@ -68,20 +69,21 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
 #[tauri::command]
 pub fn copy_record(app_handle: AppHandle, store: State<Arc<RecordStore>>, id: u64) {
     let record = store.get_record(&id).unwrap();
+    let main_window = app_handle.get_webview_window("main").unwrap();
+    main_window.hide().unwrap();
     if record.record_type == RecordType::Text {
-        let main_window = app_handle.get_webview_window("main").unwrap();
-        let _ = main_window.hide();
         clipboard::write_text(&record.record_value);
+    } else {
+        clipboard::write_image(store.img_dir.join(record.record_value))
+    }
 
-        if let Some(ns_app_pid) = app_handle
-            .state::<Mutex<AwakeState>>()
-            .lock()
-            .unwrap()
-            .ns_app_pid
-        {
-            activate_window(ns_app_pid);
-            thread::sleep(Duration::from_millis(100));
-            paste();
-        }
+    if let Some(ns_app_pid) = app_handle
+        .state::<Mutex<AwakeState>>()
+        .lock()
+        .unwrap()
+        .ns_app_pid
+    {
+        activate_window(ns_app_pid);
+        paste();
     }
 }
