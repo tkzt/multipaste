@@ -29,7 +29,6 @@ fn paste() {
     enigo.key(Key::Meta, Release).unwrap();
 }
 
-#[cfg(desktop)]
 pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
     use std::sync::{Arc, Mutex};
 
@@ -46,20 +45,23 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
             .with_shortcuts(["ctrl+v"])?
             .with_handler(move |app_handle, shortcut, _event| {
                 if shortcut.mods.contains(Modifiers::CONTROL) && shortcut.key == Code::KeyV {
-                    let main_window = app_handle.get_webview_window("main").unwrap();
-                    if !main_window.is_visible().unwrap() {
-                        main_window.move_window(Position::Center).unwrap();
+                    let main_window = app_handle.get_webview_window("main");
+                    if let Some(main_window) = main_window {
+                        if !main_window.is_visible().unwrap() {
+                            let store = app_handle.state::<Arc<RecordStore>>();
+                            let awake_state = app_handle.state::<Mutex<AwakeState>>();
 
-                        let awake_state = app_handle.state::<Mutex<AwakeState>>();
-                        awake_state.lock().unwrap().ns_app_pid = get_current_app_pid();
+                            awake_state.lock().unwrap().ns_app_pid = get_current_app_pid();
+                            main_window.center().unwrap();
+                            main_window.move_window(Position::Center).unwrap();
+                            main_window.show().unwrap();
+                            main_window.set_focus().unwrap();
 
-                        main_window.show().unwrap();
-                        main_window.set_focus().unwrap();
-
-                        let store = app_handle.state::<Arc<RecordStore>>();
-                        app_handle
-                            .emit("fill-records", &store.get_records("").unwrap_or_default())
-                            .unwrap();
+                            app_handle
+                                .emit("fill-records", &store.get_records("").unwrap_or_default())
+                                .unwrap();
+                        }
+                        
                     }
                 }
             })

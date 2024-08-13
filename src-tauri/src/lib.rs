@@ -6,27 +6,18 @@ mod clipboard;
 mod ns;
 mod store;
 mod tray;
+mod windows;
 
 use tauri::{ActivationPolicy, App, Manager, Window, WindowEvent};
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_positioner::{Position, WindowExt};
-use window_vibrancy::NSVisualEffectMaterial;
+use windows::create_main_window;
 
 fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
-    for label in ["main", "settings"] {
-        let window = app.app_handle().get_webview_window(label).unwrap();
+    // to hide icon in dock
+    app.set_activation_policy(ActivationPolicy::Accessory);
 
-        // to hide icon in dock
-        app.set_activation_policy(ActivationPolicy::Accessory);
-
-        window_vibrancy::apply_vibrancy(
-            &window,
-            NSVisualEffectMaterial::HudWindow,
-            None,
-            Some(12.0),
-        )
-        .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
-    }
+    create_main_window(app.app_handle())?;
 
     tray::init(app);
     let store = store::init(app)?;
@@ -42,11 +33,13 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
         WindowEvent::Focused(focused) => {
             if !focused {
                 if window.label() == "main" {
-                    let _ = window.move_window(Position::Center);
+                    window.move_window(Position::Center).unwrap();
+                    window.hide().unwrap();
+                }else{
+                    window.close().unwrap();
                 }
-                let _ = window.hide();
             }
-        }
+        },
         _ => (),
     }
 }

@@ -9,32 +9,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Multipaste",
-        "label": "main",
-        "url": "/",
-        "fullscreen": false,
-        "resizable": false,
-        "width": 400,
-        "minHeight": 400,
-        "transparent": true,
-        "decorations": false,
-        "visible": false
-      },
-      {
-        "title": "Settings",
-        "label": "settings",
-        "url": "/settings",
-        "fullscreen": false,
-        "resizable": false,
-        "width": 180,
-        "height": 165,
-        "transparent": true,
-        "decorations": false,
-        "visible": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: https://asset.localhost",
       "assetProtocol": {
