@@ -11,7 +11,9 @@ use std::{
 use tauri::{App, AppHandle, Manager, State};
 
 use crate::{
-    clipboard, ns::activate_window, store::{RecordStore, RecordType}
+    clipboard,
+    ns::activate_window,
+    store::{RecordStore, RecordType},
 };
 
 struct AwakeState {

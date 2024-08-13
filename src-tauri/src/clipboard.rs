@@ -21,7 +21,9 @@ fn read_clipboard(store: &RecordStore) -> Result<(), Box<dyn std::error::Error>>
 
         Some(clippers::ClipperData::Image(image)) => {
             let mut img_bytes: Vec<u8> = Vec::new();
-            image.write_to(&mut Cursor::new(&mut img_bytes), ImageOutputFormat::Png).unwrap();
+            image
+                .write_to(&mut Cursor::new(&mut img_bytes), ImageOutputFormat::Png)
+                .unwrap();
             store.save_image(&img_bytes)?;
         }
 
@@ -41,7 +43,9 @@ pub fn write_image(image_path: PathBuf) {
     if image_path.exists() {
         let image = image::open(image_path).unwrap();
         let mut clipboard = Clipboard::get();
-        clipboard.write_image(image.width(), image.height(), image.as_bytes()).unwrap();
+        clipboard
+            .write_image(image.width(), image.height(), image.as_bytes())
+            .unwrap();
     }
 }
 

@@ -1,11 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod clipboard;
 mod awake;
+mod clipboard;
+mod ns;
 mod store;
 mod tray;
-mod ns;
 
 use tauri::{ActivationPolicy, App, Manager, Window, WindowEvent};
 use tauri_plugin_log::{Target, TargetKind};

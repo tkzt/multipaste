@@ -7,7 +7,10 @@ use rusqlite::{
     Error as RusqliteError, Result,
 };
 use serde::{Serialize, Serializer};
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 use tauri::{App, Manager, State};
 
 type DbPool = Arc<Pool<SqliteConnectionManager>>;
@@ -26,7 +29,7 @@ pub enum RecordType {
 impl Serialize for RecordType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: Serializer
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -64,7 +67,7 @@ impl RecordType {
 #[derive(Debug)]
 pub struct RecordStore {
     pool: DbPool,
-    pub img_dir: PathBuf
+    pub img_dir: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,11 +84,15 @@ pub struct ClipboardRecord {
 
 impl RecordStore {
     pub fn new(db_url: PathBuf, img_dir: PathBuf) -> Self {
+        std::fs::create_dir_all(&img_dir).unwrap();
+        if let Some(path) = db_url.parent() {
+            std::fs::create_dir_all(path).unwrap();
+        }
         let manager = SqliteConnectionManager::file(db_url);
         let pool = Pool::new(manager).expect("Failed to create pool.");
         RecordStore {
             pool: Arc::new(pool),
-            img_dir
+            img_dir,
         }
     }
 
@@ -95,21 +102,30 @@ impl RecordStore {
             .expect("Failed to get a connection from the pool.")
     }
 
-    pub fn init(&self) -> Result<()> {
+    pub fn init(&self, max_records: usize) -> Result<()> {
         let conn = self.get_conn();
-        conn.execute_batch(
-            "
-        create table if not exists clipboard_record (
-            id integer primary key autoincrement,
-            record_type text not null check (record_type in ('image', 'text')),
-            record_value text not null unique,
-            hash varchar(32) unique,
-            updated_at integer not null,
-            pinned integer not null default 0 check (pinned in (0, 1))
+        let init_stmt = &format!("
+            create table if not exists clipboard_record (
+                id integer primary key autoincrement,
+                record_type text not null check (record_type in ('image', 'text')),
+                record_value text not null unique,
+                hash varchar(32) unique,
+                updated_at integer not null,
+                pinned integer not null default 0 check (pinned in (0, 1))
+            );
+            create index if not exists idx_hash on clipboard_record(hash);
+            create trigger if not exists limit_records_amount
+            after insert on clipboard_record
+            begin
+                delete from clipboard_record
+                where id in (
+                    select id from clipboard_record
+                    order by pinned asc, updated_at asc limit 1
+                ) and (select count(*) from clipboard_record) > {};
+            end;",
+            max_records
         );
-        create index if not exists idx_hash on clipboard_record(hash);
-        ",
-        )?;
+        conn.execute_batch(init_stmt)?;
         Ok(())
     }
 
@@ -147,7 +163,7 @@ impl RecordStore {
                 ],
             )?;
         }
-        Ok(updated_rows>0)
+        Ok(updated_rows > 0)
     }
 
     pub fn save_text(&self, text: &str) -> Result<()> {
@@ -157,30 +173,23 @@ impl RecordStore {
             let text_hash = format!("{:x}", md5::compute(text.as_bytes()));
             Some(text_hash)
         };
-        self.save(
-            &RecordType::Text, 
-            text,
-            text_hash.as_deref()
-        )?;
+        self.save(&RecordType::Text, text, text_hash.as_deref())?;
         Ok(())
     }
 
-    pub fn save_image(
-        &self,
-        image_bytes: &[u8]
-    ) -> Result<()> {
+    pub fn save_image(&self, image_bytes: &[u8]) -> Result<()> {
         let image_hash = format!("{:x}", md5::compute(image_bytes));
         let image_path = self.img_dir.join(format!("{}.png", image_hash));
 
         let exists = self.save(
-            &RecordType::Image, 
+            &RecordType::Image,
             image_path.to_str().unwrap(),
-            Some(&image_hash)
+            Some(&image_hash),
         )?;
-        if !exists { 
+        if !exists {
             std::fs::write(&image_path, image_bytes).unwrap();
         }
-        
+
         Ok(())
     }
 
@@ -204,7 +213,8 @@ impl RecordStore {
 
     pub fn get_records(&self, keyword: &str) -> Result<Vec<ClipboardRecord>> {
         let conn = self.get_conn();
-        let mut stmt = conn.prepare("
+        let mut stmt = conn.prepare(
+            "
             select
                 id, record_type, record_value, hash, updated_at, pinned
             from clipboard_record
@@ -212,11 +222,10 @@ impl RecordStore {
                 lower(record_value) like ?1
             order by
                 pinned desc, updated_at desc
-        ")?;
+        ",
+        )?;
 
-        let records = stmt.query_map(
-            [format!("%{}%", keyword.to_lowercase())],
-            |row| {
+        let records = stmt.query_map([format!("%{}%", keyword.to_lowercase())], |row| {
             Ok(ClipboardRecord {
                 id: row.get(0)?,
                 record_type: RecordType::from_string(&row.get::<_, String>(1)?)?,
@@ -260,12 +269,8 @@ pub fn init(app: &App) -> Result<Arc<RecordStore>, Box<dyn std::error::Error>> {
     let app_data_path = app.path().app_data_dir().unwrap();
     let db_url = app_data_path.join(DB_PATH);
     let img_dir = app_data_path.join(IMG_DIR_PATH);
-    std::fs::create_dir_all(&img_dir).unwrap();
-    if let Some(path) = db_url.parent() {
-        std::fs::create_dir_all(path).unwrap();
-    }
     let store = Arc::new(RecordStore::new(db_url, img_dir));
-    store.init()?;
+    store.init(MAX_RECORDS)?;
     return Ok(store);
 }
 
@@ -296,16 +301,16 @@ pub fn filter_records(store: State<Arc<RecordStore>>, keyword: String) -> Vec<Cl
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{DynamicImage, ImageBuffer, Rgba, ImageOutputFormat};
+    use image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgba};
     use rusqlite::Error;
-    use std::{io::Cursor, sync::Mutex, thread::sleep, time::Duration};
+    use std::{io::Cursor, path::Path, sync::Mutex, thread::sleep, time::Duration};
 
     const TEXT_VALUE: &str = "foo";
     const SOME_TEXT_NOT_IN_DB: &str = "Dolor culpa ut nisi qui veniam proident Lorem proident enim ea. Consequat adipisicing officia consectetur do sit deserunt. Veniam nostrud laboris ipsum sunt deserunt ex nulla minim nostrud voluptate consequat excepteur. Consequat tempor sint adipisicing minim anim. Ad eu nisi id in culpa qui ut eiusmod minim veniam ea. Esse non voluptate eiusmod officia duis consectetur dolore eu nulla ullamco labore id nulla.";
 
     struct SharedData {
         text_record_id: u64,
-        img_record_id: u64
+        img_record_id: u64,
     }
 
     lazy_static::lazy_static! {
@@ -320,7 +325,7 @@ mod tests {
     fn test_01_save() -> Result<()> {
         let store = SHARED_STORE.lock().unwrap();
         let mut data = SHARED_DATA.lock().unwrap();
-        store.init()?;
+        store.init(2)?;
         let conn = store.get_conn();
 
         // text
@@ -355,7 +360,9 @@ mod tests {
         });
         let dynamic_image = DynamicImage::ImageRgba8(img_value);
         let mut img_bytes: Vec<u8> = Vec::new();
-        dynamic_image.write_to(&mut Cursor::new(&mut img_bytes), ImageOutputFormat::Png).unwrap();
+        dynamic_image
+            .write_to(&mut Cursor::new(&mut img_bytes), ImageOutputFormat::Png)
+            .unwrap();
 
         store.save_image(&img_bytes)?;
         let img_hash = format!("{:x}", md5::compute(&img_bytes));
@@ -406,7 +413,9 @@ mod tests {
         assert_eq!(record.id, data.text_record_id);
 
         let records = store.get_records(TEXT_VALUE)?;
-        assert!(records.iter().any(|record| record.record_value == TEXT_VALUE));
+        assert!(records
+            .iter()
+            .any(|record| record.record_value == TEXT_VALUE));
 
         let records = store.get_records(SOME_TEXT_NOT_IN_DB)?;
         assert_eq!(records.len(), 0);
@@ -439,7 +448,29 @@ mod tests {
     }
 
     #[test]
-    fn test_04_delete_record() -> Result<()> {
+    fn test_04_max_records() -> Result<()> {
+        let store = SHARED_STORE.lock().unwrap();
+        let mut data = SHARED_DATA.lock().unwrap();
+
+        let text_value = &format!("{}{}", TEXT_VALUE, TEXT_VALUE);
+        store.save_text(text_value)?;
+
+        let result = store.get_record(&data.text_record_id);
+        assert!(matches!(result, Err(Error::QueryReturnedNoRows)));
+
+        let newly_saved_record_id = store.get_conn().query_row(
+            "select id from clipboard_record where record_value = ?1",
+            [text_value],
+            |r| r.get::<_, u64>(0),
+        ).unwrap();
+        assert!(newly_saved_record_id > 0);
+
+        data.text_record_id = newly_saved_record_id;
+        Ok(())
+    }
+
+    #[test]
+    fn test_05_delete_record() -> Result<()> {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
         store.delete(&data.text_record_id)?;

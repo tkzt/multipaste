@@ -4,7 +4,8 @@ A concise MacOS clipboard manager.
 
 ---
 
-- [ ] Recreate settings each time
+- [ ] Recreate window each time
 - [ ] Locate the current monitor
-- [ ] Max records
+- [x] Max records
 - [ ] Image size
+- [ ] Settings
