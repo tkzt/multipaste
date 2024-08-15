@@ -32,7 +32,7 @@ pub fn create_main_window(app_handle: &AppHandle) -> Result<WebviewWindow>{
   config.title = "Multipaste".to_string();
   config.label = "main".to_string();
   config.width = 400_f64;
-  config.min_height = Some(400_f64);
+  config.height = 600_f64;
   config.url = WebviewUrl::App("/".into());
 
   create_window(app_handle, &config)

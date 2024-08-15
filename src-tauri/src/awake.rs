@@ -12,12 +12,12 @@ use tauri::{App, AppHandle, Manager, State};
 
 use crate::{
     clipboard,
-    ns::activate_window,
+    ns::{activate_window, get_active_window_info, WindowInfo},
     store::{RecordStore, RecordType},
 };
 
 struct AwakeState {
-    ns_app_pid: Option<i32>,
+    active_window: Option<WindowInfo>,
 }
 
 fn paste() {
@@ -36,9 +36,7 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
     use tauri_plugin_global_shortcut::{Builder, Code, Modifiers};
     use tauri_plugin_positioner::{Position, WindowExt};
 
-    use crate::{ns::get_current_app_pid, store::RecordStore};
-
-    let awake_state = Mutex::new(AwakeState { ns_app_pid: None });
+    let awake_state = Mutex::new(AwakeState { active_window: None });
     app.handle().manage(awake_state);
     app.handle().plugin(
         Builder::new()
@@ -50,18 +48,14 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
                         if !main_window.is_visible().unwrap() {
                             let store = app_handle.state::<Arc<RecordStore>>();
                             let awake_state = app_handle.state::<Mutex<AwakeState>>();
-
-                            awake_state.lock().unwrap().ns_app_pid = get_current_app_pid();
-                            main_window.center().unwrap();
-                            main_window.move_window(Position::Center).unwrap();
+                            awake_state.lock().unwrap().active_window = get_active_window_info();
                             main_window.show().unwrap();
+                            main_window.move_window(Position::Center).unwrap();
                             main_window.set_focus().unwrap();
-
                             app_handle
                                 .emit("fill-records", &store.get_records("").unwrap_or_default())
                                 .unwrap();
                         }
-                        
                     }
                 }
             })
@@ -81,13 +75,13 @@ pub fn copy_record(app_handle: AppHandle, store: State<Arc<RecordStore>>, id: u6
         clipboard::write_image(store.img_dir.join(record.record_value))
     }
 
-    if let Some(ns_app_pid) = app_handle
+    if let Some(active_window) = &app_handle
         .state::<Mutex<AwakeState>>()
         .lock()
         .unwrap()
-        .ns_app_pid
+        .active_window
     {
-        activate_window(ns_app_pid);
+        activate_window(active_window);
         paste();
     }
 }

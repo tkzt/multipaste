@@ -1,4 +1,5 @@
 use chrono::Local;
+use crypto::{digest::Digest, sha2::Sha256};
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{
@@ -75,7 +76,7 @@ pub struct ClipboardRecord {
     pub id: u64,
     pub record_type: RecordType,
     // For image, the record value will be like
-    // <IMG_DIR>/<md5_hash>.png
+    // <IMG_DIR>/<sha256_hash>.png
     pub record_value: String,
     pub hash: Option<String>,
     pub updated_at: u64,
@@ -129,6 +130,12 @@ impl RecordStore {
         Ok(())
     }
 
+    fn calc_hash(&self, bytes: &[u8]) -> String {
+        let mut hasher = Sha256::new();
+        hasher.input(bytes);
+        hasher.result_str()
+    }
+
     fn save(
         &self,
         record_type: &RecordType,
@@ -170,7 +177,7 @@ impl RecordStore {
         let text_hash = if text.len() <= MIN_TEXT_HASHING_SIZE {
             None
         } else {
-            let text_hash = format!("{:x}", md5::compute(text.as_bytes()));
+            let text_hash = self.calc_hash(text.as_bytes());
             Some(text_hash)
         };
         self.save(&RecordType::Text, text, text_hash.as_deref())?;
@@ -178,7 +185,7 @@ impl RecordStore {
     }
 
     pub fn save_image(&self, image_bytes: &[u8]) -> Result<()> {
-        let image_hash = format!("{:x}", md5::compute(image_bytes));
+        let image_hash = self.calc_hash(image_bytes);
         let image_path = self.img_dir.join(format!("{}.png", image_hash));
 
         let exists = self.save(
@@ -365,7 +372,7 @@ mod tests {
             .unwrap();
 
         store.save_image(&img_bytes)?;
-        let img_hash = format!("{:x}", md5::compute(&img_bytes));
+        let img_hash = store.calc_hash(&img_bytes);
         let query_image_res = || -> (u64, u64) {
             conn.query_row(
                 "

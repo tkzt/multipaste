@@ -1,33 +1,62 @@
 extern crate cocoa;
 extern crate objc;
 
+use accessibility::{AXUIElement, AXUIElementAttributes};
 use cocoa::{
-    base::{id, nil},
-    foundation::NSAutoreleasePool,
+    appkit::NSApplicationActivationOptions::NSApplicationActivateIgnoringOtherApps, base::{id, nil}, foundation::NSAutoreleasePool
 };
+use core_foundation::boolean::CFBoolean;
 use objc::{msg_send, runtime::Class, sel, sel_impl};
 
-pub fn get_current_app_pid() -> Option<i32> {
+pub struct WindowInfo {
+    app_pid: i32,
+    window_idx: usize,
+}
+
+pub fn get_active_window_info() -> Option<WindowInfo> {
     unsafe {
         let _pool = NSAutoreleasePool::new(nil);
         let workspace: id = msg_send![Class::get("NSWorkspace").unwrap(), sharedWorkspace];
         let active_app: id = msg_send![workspace, frontmostApplication];
         if active_app != nil {
-            let pid: i32 = msg_send![active_app, processIdentifier];
-            return Some(pid);
+            let app_pid: i32 = msg_send![active_app, processIdentifier];
+            let app_element = AXUIElement::application(app_pid);
+            let windows = app_element.windows().unwrap();
+            for (window_idx, window) in windows.iter().enumerate() {
+                if let Ok(is_main_window) = window.main() {
+                    if is_main_window == CFBoolean::true_value() {
+                        return Some(WindowInfo {
+                            app_pid,
+                            window_idx
+                        })
+                    }
+                } 
+            }
         }
         None
     }
 }
 
-pub fn activate_window(app_pid: i32) -> bool {
+pub fn activate_window(window_info: &WindowInfo) {
     unsafe {
         let _pool = NSAutoreleasePool::new(nil);
-        let app: id = msg_send![Class::get("NSRunningApplication").unwrap(), runningApplicationWithProcessIdentifier: app_pid];
-        if app != nil {
-            let _: () = msg_send![app, activateWithOptions: 1];
-            return true;
+        let app: id = msg_send![
+            Class::get("NSRunningApplication").unwrap(),
+            runningApplicationWithProcessIdentifier: window_info.app_pid
+        ];
+        if app == nil {
+            return;
         }
-        false
+        
+        let _: () = msg_send![app, activateWithOptions: NSApplicationActivateIgnoringOtherApps];
+        let app_element = AXUIElement::application(window_info.app_pid);
+        let windows = app_element.windows().unwrap();
+        
+        for (window_idx, window) in windows.iter().enumerate() {
+            if window_idx == window_info.window_idx {
+                window.set_main(CFBoolean::true_value()).unwrap();
+                break;
+            }
+        }
     }
 }

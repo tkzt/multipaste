@@ -7,8 +7,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AInput: typeof import('@arco-design/web-vue')['Input']
-    ASwitch: typeof import('@arco-design/web-vue')['Switch']
     AsyncImage: typeof import('./src/components/AsyncImage.vue')['default']
     IMdiClose: typeof import('~icons/mdi/close')['default']
     IMdiDragHorizontal: typeof import('~icons/mdi/drag-horizontal')['default']
