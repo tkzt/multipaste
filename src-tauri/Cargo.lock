@@ -2207,6 +2207,7 @@ name = "multipaste"
 version = "0.0.1"
 dependencies = [
  "accessibility",
+ "accessibility-sys",
  "chrono",
  "clippers",
  "cocoa",
