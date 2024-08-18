@@ -3,12 +3,43 @@ extern crate objc;
 
 use std::ptr;
 
-use accessibility_sys::{kAXErrorSuccess, kAXFocusedWindowAttribute, kAXRaiseAction, kAXTrustedCheckOptionPrompt, kAXWindowsAttribute, AXError, AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue, AXUIElementCopyAttributeValues, AXUIElementCreateApplication, AXUIElementPerformAction, AXUIElementRef};
+use accessibility_ng::{AXAttribute, AXUIElement, AXValue};
+use accessibility_sys_ng::{
+    kAXBoundsForRangeParameterizedAttribute,
+    kAXFocusedUIElementAttribute,
+    kAXFocusedWindowAttribute,
+    kAXRaiseAction,
+    kAXSelectedTextRangeAttribute,
+    kAXTrustedCheckOptionPrompt,
+    kAXWindowsAttribute,
+    AXError,
+    AXIsProcessTrustedWithOptions,
+    AXUIElementCopyAttributeValues,
+    AXUIElementCreateApplication,
+    AXUIElementPerformAction,
+    AXUIElementRef
+};
 use cocoa::{
     appkit::NSApplicationActivationOptions::NSApplicationActivateIgnoringOtherApps, base::{id, nil}, foundation::NSAutoreleasePool
 };
-use core_foundation::{array::{CFArrayGetCount, CFArrayGetValueAtIndex}, base::{CFRelease, TCFType, TCFTypeRef}, dictionary::{CFDictionaryAddValue, CFDictionaryCreateMutable}, number::kCFBooleanTrue, string::CFString};
-use core_graphics::display::CGWindowID;
+use core_foundation::{
+    array::{
+        CFArrayGetCount,
+        CFArrayGetValueAtIndex
+    },
+    base::{
+        CFRelease,
+        TCFType,
+        TCFTypeRef
+    },
+    dictionary::{
+        CFDictionaryAddValue,
+        CFDictionaryCreateMutable
+    },
+    number::kCFBooleanTrue,
+    string::CFString
+};
+use core_graphics::display::{CGRect, CGWindowID};
 use log::{info, warn};
 use objc::{msg_send, runtime::Class, sel, sel_impl};
 
@@ -20,6 +51,47 @@ extern "C" {
 pub struct WindowInfo {
     app_pid: i32,
     window_id: u32,
+}
+
+fn get_cursor_position() -> Option<CGRect> {
+    let system_element = AXUIElement::system_wide();
+    let Some(focused_element) = system_element
+        .attribute(
+            &AXAttribute::new(&CFString::from_static_string(kAXFocusedUIElementAttribute))
+        )
+        .map(|el| el.downcast_into::<AXUIElement>())
+        .ok()
+        .flatten()
+    else {
+        warn!("Failed to get the focused element");
+        return None;
+    };
+    let Some(selection_range_value) = focused_element
+        .attribute(&AXAttribute::new(&CFString::from_static_string(
+            kAXSelectedTextRangeAttribute,
+        )))
+        .map(|value| value.downcast_into::<AXValue>())
+        .ok()
+        .flatten()
+    else {
+        warn!("Nothing selected.");
+        return None;
+    };
+    let Some(selection_bounds_value) = focused_element
+        .parameterized_attribute(
+            &AXAttribute::new(&CFString::from_static_string(
+                kAXBoundsForRangeParameterizedAttribute,
+            )),
+            &selection_range_value,
+        )
+        .map(|value| value.downcast_into::<AXValue>())
+        .ok()
+        .flatten()
+    else {
+        return None;
+    };
+    let position = selection_bounds_value.get_value::<CGRect>();
+    position.ok()
 }
 
 pub fn check_accessibility_trusted() -> bool {
@@ -43,30 +115,29 @@ pub fn get_active_window_info() -> Option<WindowInfo> {
         let active_app: id = msg_send![workspace, frontmostApplication];
         if active_app != nil {
             let app_pid: i32 = msg_send![active_app, processIdentifier];
-            let app_element = AXUIElementCreateApplication(app_pid);
-            let mut focused_window = ptr::null();
-            if AXUIElementCopyAttributeValue(
-                app_element,
-                CFString::from_static_string(kAXFocusedWindowAttribute).as_concrete_TypeRef(),
-                &mut focused_window
-            ) == kAXErrorSuccess {
-                let mut window_id: u32 = 0;
-                _AXUIElementGetWindow(
-                    focused_window as AXUIElementRef,
-                    &mut window_id
-                );
-                if window_id > 0 {
-                    info!("Focused window: {}", window_id);
-                    return Some(WindowInfo {
-                        app_pid,
-                        window_id,
-                    })
-                } else {
-                    warn!("Failed to get focused window id");
-                }
+            let app_element = AXUIElement::application(app_pid);
+            let Some(focused_window) = app_element.attribute(
+                &AXAttribute::new(&CFString::from_static_string(kAXFocusedWindowAttribute))
+            ).map(|el| el.downcast_into::<AXUIElement>())
+            .ok().flatten()
+            else {
+                warn!("Failed to get focused window");
+                return None;
+            };
+            let mut window_id: u32 = 0;
+            _AXUIElementGetWindow(
+                focused_window.as_concrete_TypeRef(),
+                &mut window_id
+            );
+            if let Some(position) = get_cursor_position(){
+                info!("Cursor position: {:?}", position);
             } else {
-                warn!("Failed to copy attribute value {}", kAXFocusedWindowAttribute)
+                warn!("Failed to get cursor position");
             }
+            return Some(WindowInfo {
+                app_pid,
+                window_id,
+            })
         } else {
             warn!("None active app found.")
         }

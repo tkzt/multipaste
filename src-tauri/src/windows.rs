@@ -1,4 +1,4 @@
-use tauri::{utils::config::WindowConfig, AppHandle, Result, WebviewUrl, WebviewWindow};
+use tauri::{utils::config::WindowConfig, AppHandle, Result, WebviewUrl, WebviewWindow, WindowEvent};
 use window_vibrancy::NSVisualEffectMaterial;
 
 fn gen_basic_config() -> WindowConfig {

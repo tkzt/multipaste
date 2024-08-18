@@ -9,3 +9,4 @@ A concise MacOS clipboard manager.
 - [x] Max records
 - [ ] Image size
 - [ ] Settings
+- [ ] Clear all

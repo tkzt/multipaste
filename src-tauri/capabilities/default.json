@@ -15,6 +15,11 @@
     "autostart:default",
     "process:default",
     "core:path:default",
-    "core:path:allow-resolve"
+    "core:path:allow-resolve",
+    "fs:allow-config-write",
+    "fs:allow-config-read",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

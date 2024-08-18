@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod conf;
 mod awake;
 mod clipboard;
 mod ns;
@@ -9,6 +10,7 @@ mod tray;
 mod windows;
 
 use tauri::{ActivationPolicy, App, Manager, Window, WindowEvent};
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_positioner::{Position, WindowExt};
 use windows::create_main_window;
@@ -20,8 +22,8 @@ fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
     create_main_window(app.app_handle())?;
 
     tray::init(app);
+    conf::init(app)?;
     let store = store::init(app)?;
-    app.handle().manage(store.clone());
     clipboard::listen(store);
     awake::init(app)?;
 
@@ -48,7 +50,10 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
-        // .plugin(tauri_plugin_autostart::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![])
+        ))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_positioner::init())
@@ -69,6 +74,9 @@ pub fn run() {
             store::unpin_record,
             store::delete_record,
             awake::copy_record,
+            conf::get_config,
+            conf::update_auto_start,
+            conf::update_max_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

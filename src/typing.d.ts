@@ -7,4 +7,9 @@ declare namespace Multipaste {
     record_value: string
     pinned: boolean
   }
+
+  interface Config {
+    auto_start: boolean
+    max_items: number
+  }
 }

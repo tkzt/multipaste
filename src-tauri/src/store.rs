@@ -10,15 +10,16 @@ use rusqlite::{
 use serde::{Serialize, Serializer};
 use std::{
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use tauri::{App, Manager, State};
+
+use crate::conf::Config;
 
 type DbPool = Arc<Pool<SqliteConnectionManager>>;
 
 const DB_PATH: &str = "data.db";
 const IMG_DIR_PATH: &str = "images";
-const MAX_RECORDS: usize = 200;
 const MIN_TEXT_HASHING_SIZE: usize = 50;
 
 #[derive(Debug)]
@@ -103,19 +104,11 @@ impl RecordStore {
             .expect("Failed to get a connection from the pool.")
     }
 
-    pub fn init(&self, max_records: usize) -> Result<()> {
+    pub fn update_max_records_trigger(&self, max_records: u64) -> Result<()> {
         let conn = self.get_conn();
-        let init_stmt = &format!("
-            create table if not exists clipboard_record (
-                id integer primary key autoincrement,
-                record_type text not null check (record_type in ('image', 'text')),
-                record_value text not null unique,
-                hash varchar(32) unique,
-                updated_at integer not null,
-                pinned integer not null default 0 check (pinned in (0, 1))
-            );
-            create index if not exists idx_hash on clipboard_record(hash);
-            create trigger if not exists limit_records_amount
+        let stmt = &format!("
+            drop trigger if exists limit_records_amount;
+            create trigger limit_records_amount
             after insert on clipboard_record
             begin
                 delete from clipboard_record
@@ -126,7 +119,24 @@ impl RecordStore {
             end;",
             max_records
         );
-        conn.execute_batch(init_stmt)?;
+        conn.execute_batch(stmt)?;
+        Ok(())
+    }
+
+    pub fn init(&self, max_records: u64) -> Result<()> {
+        let conn = self.get_conn();
+        conn.execute_batch("
+            create table if not exists clipboard_record (
+                id integer primary key autoincrement,
+                record_type text not null check (record_type in ('image', 'text')),
+                record_value text not null unique,
+                hash varchar(32) unique,
+                updated_at integer not null,
+                pinned integer not null default 0 check (pinned in (0, 1))
+            );
+            create index if not exists idx_hash on clipboard_record(hash);
+        ")?;
+        self.update_max_records_trigger(max_records)?;
         Ok(())
     }
 
@@ -273,11 +283,13 @@ impl RecordStore {
 }
 
 pub fn init(app: &App) -> Result<Arc<RecordStore>, Box<dyn std::error::Error>> {
+    let config = app.state::<Mutex<Config>>();
     let app_data_path = app.path().app_data_dir().unwrap();
     let db_url = app_data_path.join(DB_PATH);
     let img_dir = app_data_path.join(IMG_DIR_PATH);
     let store = Arc::new(RecordStore::new(db_url, img_dir));
-    store.init(MAX_RECORDS)?;
+    store.init(config.lock().unwrap().max_items)?;
+    app.manage(store.clone());
     return Ok(store);
 }
 

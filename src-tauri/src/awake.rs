@@ -49,8 +49,9 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
                             let store = app_handle.state::<Arc<RecordStore>>();
                             let awake_state = app_handle.state::<Mutex<AwakeState>>();
                             awake_state.lock().unwrap().active_window = get_active_window_info();
-                            main_window.show().unwrap();
+                            main_window.center().unwrap();
                             main_window.move_window(Position::Center).unwrap();
+                            main_window.show().unwrap();
                             main_window.set_focus().unwrap();
                             app_handle
                                 .emit("fill-records", &store.get_records("").unwrap_or_default())
