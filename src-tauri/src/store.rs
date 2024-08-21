@@ -115,7 +115,7 @@ impl RecordStore {
                 delete from clipboard_record
                 where id in (
                     select id from clipboard_record
-                    order by pinned desc, updated_at desc offset {0}
+                    order by pinned desc, updated_at desc limit -1 offset {0}
                 ) and (select count(*) from clipboard_record) > {0};
             end;",
             max_records
