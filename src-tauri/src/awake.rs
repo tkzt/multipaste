@@ -36,7 +36,9 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
     use tauri_plugin_global_shortcut::{Builder, Code, Modifiers};
     use tauri_plugin_positioner::{Position, WindowExt};
 
-    let awake_state = Mutex::new(AwakeState { active_window: None });
+    let awake_state = Mutex::new(AwakeState {
+        active_window: None,
+    });
     app.handle().manage(awake_state);
     app.handle().plugin(
         Builder::new()

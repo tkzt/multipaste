@@ -9,7 +9,11 @@ pub fn init(app: &App) {
         tauri_plugin_positioner::on_tray_event(tray_icon.app_handle(), &event);
         match event {
             TrayIconEvent::Click { .. } => {
-                if let Some(settings_window) = tray_icon.app_handle().get_webview_window("settings").or_else(|| create_settings_window(tray_icon.app_handle()).ok()) {
+                if let Some(settings_window) = tray_icon
+                    .app_handle()
+                    .get_webview_window("settings")
+                    .or_else(|| create_settings_window(tray_icon.app_handle()).ok())
+                {
                     settings_window.move_window(Position::TrayCenter).unwrap();
                     settings_window.show().unwrap();
                     settings_window.set_focus().unwrap();

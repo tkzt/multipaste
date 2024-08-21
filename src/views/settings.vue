@@ -1,40 +1,49 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
+import { sendNotification } from '@tauri-apps/plugin-notification'
 import { exit } from '@tauri-apps/plugin-process'
-import { onMounted, ref } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
+import { onMounted, reactive, ref } from 'vue'
 
-const config = ref<Multipaste.Config>()
+const config = reactive<Multipaste.Config>({
+  max_items: 0,
+  auto_start: false,
+})
 const transitionReady = ref(false)
 
 onMounted(async () => {
-  config.value = await invoke<Multipaste.Config>('get_config')
+  Object.assign(config, await invoke<Multipaste.Config>('get_config'))
   setTimeout(() => {
     transitionReady.value = true
   }, 400)
 })
 
 async function toggleAutoStart() {
-  if (config.value) {
-    const updated = await invoke<boolean>('update_auto_start', {
-      autoStart: !config.value.auto_start,
-    })
-    if (updated) {
-      config.value.auto_start = !config.value.auto_start
-    }
+  const updated = await invoke<boolean>('update_auto_start', {
+    autoStart: !config.auto_start,
+  })
+  if (updated) {
+    config.auto_start = !config.auto_start
   }
 }
 
-// TODO: Debounce
-// async function updateMaxItems() {
-//   if (config.value && config.value.max_items) {
-//     const updated = await invoke<boolean>('update_max_items', {
-//       max_items: config.value.max_items,
-//     })
-//     if (updated) {
-//       config.value.max_items = !config.value.max_items
-//     }
-//   }
-// }
+const updateMaxItems = useDebounceFn(async (event: Event) => {
+  const { value } = event.target as HTMLInputElement
+  const valueMaxItems = +value
+  if (!valueMaxItems || valueMaxItems <= 0) {
+    sendNotification({
+      title: 'Warning',
+      body: 'Invalid max items.',
+    })
+    return
+  }
+  const updated = await invoke<boolean>('update_max_items', {
+    maxItems: valueMaxItems,
+  })
+  if (updated) {
+    config.max_items = valueMaxItems
+  }
+})
 </script>
 
 <template>
@@ -46,7 +55,7 @@ async function toggleAutoStart() {
         </div>
         <div class="box-border w-1/2 flex shrink-1 items-center justify-end overflow-hidden rounded-lg">
           <label class="switch">
-            <input type="checkbox" :checked="config?.auto_start" @input="toggleAutoStart">
+            <input type="checkbox" :checked="config.auto_start" @input="toggleAutoStart">
             <span class="slider" :class="{ 'transition-ready': transitionReady }" />
           </label>
         </div>
@@ -56,7 +65,13 @@ async function toggleAutoStart() {
           最大记录
         </div>
         <div class="box-border w-1/2 shrink-1 overflow-hidden rounded-lg">
-          <input type="number" oninput="this.value = this.value.replace(/[^\d]/g, '');" :value="config?.max_items" class="border-none bg-white/20 p-2 text-gray-800 outline-none dark:bg-white/12">
+          <input
+            :value="config.max_items"
+            type="number"
+            oninput="this.value = this.value.replace(/[^\d]/g, '');"
+            class="box-border w-full border-none bg-white/20 p-2 text-gray-800 outline-none dark:bg-white/12"
+            @input="updateMaxItems"
+          >
         </div>
       </div>
       <div class="mt-2 cursor-pointer bg-red-600 text-center text-sm text-white hover:(bg-red-700 dark:bg-red-500) card" @click="exit(0)">

@@ -8,5 +8,5 @@ A concise MacOS clipboard manager.
 - [x] Locate the current monitor
 - [x] Max records
 - [ ] Image size
-- [ ] Settings
+- [x] Settings
 - [ ] Clear all

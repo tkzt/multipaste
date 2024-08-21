@@ -1,9 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod conf;
 mod awake;
 mod clipboard;
+mod conf;
 mod ns;
 mod store;
 mod tray;
@@ -37,11 +37,11 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
                 if window.label() == "main" {
                     window.move_window(Position::Center).unwrap();
                     window.hide().unwrap();
-                }else{
+                } else {
                     window.close().unwrap();
                 }
             }
-        },
+        }
         _ => (),
     }
 }
@@ -49,10 +49,11 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            Some(vec![])
+            Some(vec![]),
         ))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_log::Builder::new().build())

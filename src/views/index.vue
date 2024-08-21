@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch, watchEffect } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
 import PerfectScrollbar from 'perfect-scrollbar'
 import 'perfect-scrollbar/css/perfect-scrollbar.css'
 import { listen } from '@tauri-apps/api/event'
@@ -55,8 +55,8 @@ async function deleteRecord(id: number) {
 
 <template>
   <div class="relative h-100vh flex flex-col overflow-hidden rd-lg">
-    <div class="h-10 flex shrink-0 items-center justify-center text-lg" data-tauri-drag-region>
-      <i-mdi-drag-horizontal class="block cursor-grab dark:c-white" data-tauri-drag-region />
+    <div class="h-10 flex shrink-0 cursor-grab items-center justify-center text-lg" data-tauri-drag-region>
+      <i-mdi-drag-horizontal class="pointer-events-none block dark:c-white" />
     </div>
     <div class="box-border w-full px-2 pb-1">
       <div class="box-border w-full flex rounded-lg bg-white/30 p-2 dark:bg-white/12">

@@ -106,7 +106,8 @@ impl RecordStore {
 
     pub fn update_max_records_trigger(&self, max_records: u64) -> Result<()> {
         let conn = self.get_conn();
-        let stmt = &format!("
+        let stmt = &format!(
+            "
             drop trigger if exists limit_records_amount;
             create trigger limit_records_amount
             after insert on clipboard_record
@@ -125,7 +126,8 @@ impl RecordStore {
 
     pub fn init(&self, max_records: u64) -> Result<()> {
         let conn = self.get_conn();
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             create table if not exists clipboard_record (
                 id integer primary key autoincrement,
                 record_type text not null check (record_type in ('image', 'text')),
@@ -135,7 +137,8 @@ impl RecordStore {
                 pinned integer not null default 0 check (pinned in (0, 1))
             );
             create index if not exists idx_hash on clipboard_record(hash);
-        ")?;
+        ",
+        )?;
         self.update_max_records_trigger(max_records)?;
         Ok(())
     }
@@ -477,11 +480,14 @@ mod tests {
         let result = store.get_record(&data.text_record_id);
         assert!(matches!(result, Err(Error::QueryReturnedNoRows)));
 
-        let newly_saved_record_id = store.get_conn().query_row(
-            "select id from clipboard_record where record_value = ?1",
-            [text_value],
-            |r| r.get::<_, u64>(0),
-        ).unwrap();
+        let newly_saved_record_id = store
+            .get_conn()
+            .query_row(
+                "select id from clipboard_record where record_value = ?1",
+                [text_value],
+                |r| r.get::<_, u64>(0),
+            )
+            .unwrap();
         assert!(newly_saved_record_id > 0);
 
         data.text_record_id = newly_saved_record_id;
