@@ -1,5 +1,5 @@
 use tauri::{
-    utils::config::WindowConfig, AppHandle, Result, WebviewUrl, WebviewWindow, WindowEvent,
+    utils::config::WindowConfig, AppHandle, Result, WebviewUrl, WebviewWindow,
 };
 use window_vibrancy::NSVisualEffectMaterial;
 
