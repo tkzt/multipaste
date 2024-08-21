@@ -1,5 +1,6 @@
 use chrono::Local;
 use crypto::{digest::Digest, sha2::Sha256};
+use log::warn;
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{
@@ -9,10 +10,10 @@ use rusqlite::{
 };
 use serde::{Serialize, Serializer};
 use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
+    fs, path::{Path, PathBuf}, sync::{Arc, Mutex}
 };
 use tauri::{App, Manager, State};
+use glob::glob;
 
 use crate::conf::Config;
 
@@ -197,6 +198,55 @@ impl RecordStore {
         Ok(())
     }
 
+    fn filter_dangling_images(&self, hashes: &Vec<String>) -> Result<Vec<String>> {
+        let conn = self.get_conn();
+        let hash_values: Vec<String> = hashes.iter().map(|h| format!("('{}')", h)).collect();
+        let batch_stmt = format!("
+            drop table if exists temp_hashes;
+            create table temp_hashes (hash varchar(32));
+            insert into temp_hashes (hash) values {};
+        ", hash_values.join(","));
+        conn.execute_batch(&batch_stmt)?;
+        let mut filter_stmt = conn.prepare("
+            select temp_hashes.hash
+            from temp_hashes
+            left join clipboard_record on temp_hashes.hash = clipboard_record.hash
+            where clipboard_record.hash is null;
+        ")?;
+        let image_hashes = filter_stmt.query_map([], |row| {
+            row.get::<_, String>(0)
+        })?;
+        Ok(image_hashes.flatten().collect::<Vec<String>>())
+    }
+
+    fn clean_dangling_images(&self) -> Result<()> {
+        if let Some(img_dir) = self.img_dir.to_str() {
+            if let Ok(paths) = glob(&format!("{}/*.png", img_dir)) {
+                let hashes: Vec<String> = paths
+                    .flatten()
+                    .filter_map(
+                        |image_path| image_path.file_stem().and_then(
+                            |p| p.to_str()
+                        ).map(|s| s.to_owned())
+                    ).collect();
+                let dangling_hashes = self.filter_dangling_images(&hashes)?;
+                dangling_hashes.iter().for_each(|hash| {
+                    let image_path = Path::new(&format!("{}/{}.png", img_dir, hash)).to_path_buf();
+                    if image_path.exists() {
+                        if let Err(_) = fs::remove_file(&image_path) {
+                            warn!("Failed to remove file {:?}", image_path);
+                        }
+                    }
+                })
+            } else {
+                warn!("Failed to glob images")
+            }
+        } else {
+            warn!("Failed to get image directory")
+        }
+        Ok(())
+    }
+
     pub fn save_image(&self, image_bytes: &[u8]) -> Result<()> {
         let image_hash = self.calc_hash(image_bytes);
         let image_path = self.img_dir.join(format!("{}.png", image_hash));
@@ -209,6 +259,8 @@ impl RecordStore {
         if !exists {
             std::fs::write(&image_path, image_bytes).unwrap();
         }
+
+        self.clean_dangling_images()?;
 
         Ok(())
     }
@@ -242,8 +294,7 @@ impl RecordStore {
                 lower(record_value) like ?1
             order by
                 pinned desc, updated_at desc
-        ",
-        )?;
+        ")?;
 
         let records = stmt.query_map([format!("%{}%", keyword.to_lowercase())], |row| {
             Ok(ClipboardRecord {
