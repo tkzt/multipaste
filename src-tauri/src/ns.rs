@@ -1,13 +1,11 @@
 extern crate cocoa;
 extern crate objc;
 
-use std::ptr;
-
 use accessibility_ng::{AXAttribute, AXUIElement, AXValue};
 use accessibility_sys_ng::{
     kAXBoundsForRangeParameterizedAttribute, kAXFocusedUIElementAttribute,
     kAXFocusedWindowAttribute, kAXRaiseAction, kAXSelectedTextRangeAttribute,
-    kAXTrustedCheckOptionPrompt, kAXWindowsAttribute, AXError, AXIsProcessTrustedWithOptions,
+    kAXWindowsAttribute, AXError,
     AXUIElementCopyAttributeValues, AXUIElementCreateApplication, AXUIElementPerformAction,
     AXUIElementRef,
 };
@@ -18,9 +16,7 @@ use cocoa::{
 };
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},
-    base::{CFRelease, TCFType, TCFTypeRef},
-    dictionary::{CFDictionaryAddValue, CFDictionaryCreateMutable},
-    number::kCFBooleanTrue,
+    base::TCFType,
     string::CFString,
 };
 use core_graphics::display::{CGRect, CGWindowID};
@@ -76,21 +72,6 @@ fn get_cursor_position() -> Option<CGRect> {
     };
     let position = selection_bounds_value.get_value::<CGRect>();
     position.ok()
-}
-
-pub fn check_accessibility_trusted() -> bool {
-    unsafe {
-        let options =
-            CFDictionaryCreateMutable(ptr::null_mut(), 1, std::ptr::null(), std::ptr::null());
-        CFDictionaryAddValue(
-            options,
-            kAXTrustedCheckOptionPrompt.as_void_ptr(),
-            kCFBooleanTrue.as_void_ptr(),
-        );
-        let is_allowed = AXIsProcessTrustedWithOptions(options);
-        CFRelease(options as *const _);
-        is_allowed
-    }
 }
 
 pub fn get_active_window_info() -> Option<WindowInfo> {

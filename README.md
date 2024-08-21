@@ -10,4 +10,3 @@ A concise MacOS clipboard manager.
 - [ ] Image size
 - [x] Settings
 - [ ] Clear all
-- [ ] Check accessibility permission
