@@ -1,7 +1,7 @@
 use clipboard_rs::common::RustImage;
 use clipboard_rs::{Clipboard, ClipboardContext, ClipboardHandler, ClipboardWatcher, ClipboardWatcherContext};
 use image::ImageFormat;
-use log::{error, warn};
+use log::{error, info, warn};
 use std::io::Cursor;
 use std::thread;
 use std::path::PathBuf;
@@ -29,8 +29,14 @@ impl ClipboardHandler for ClipboardManager {
                 if let Err(err) = self.store.save_text(&text.to_string()){
                     error!("Error saving text: {}", err);
                 }
+            } else {
+                warn!("Empty text in clipboard.");
             }
-        } else if let Ok(img) = self.ctx.get_image() {
+        }
+        
+        if let Ok(img) = self.ctx.get_image() {
+            let img_size = img.get_size();
+            info!("Image detected: {}x{}", img_size.0, img_size.1);
             let mut img_bytes: Vec<u8> = Vec::new();
             if let Ok(img_data) = img.get_dynamic_image() {
                 if let Ok(_) = img_data.write_to(&mut Cursor::new(&mut img_bytes), ImageFormat::Png) {

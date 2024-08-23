@@ -48,11 +48,12 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
                 warn!("Shortcut pressed: {:?}", shortcut);
                 if shortcut.mods.contains(Modifiers::CONTROL) && shortcut.key == Code::KeyV {
                     if let None = app_handle.get_webview_window("main") {
+                        let active_window_info = get_active_window_info();
                         let main_window = create_main_window(app_handle);
                         if let Ok(main_window) = main_window {
                             if !main_window.is_visible().unwrap() {
                                 let awake_state = app_handle.state::<Mutex<AwakeState>>();
-                                awake_state.lock().unwrap().active_window = get_active_window_info();
+                                awake_state.lock().unwrap().active_window = active_window_info;
                                 main_window.center().unwrap();
                                 main_window.move_window(Position::Center).unwrap();
                                 main_window.show().unwrap();
