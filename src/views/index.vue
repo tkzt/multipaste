@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import PerfectScrollbar from 'perfect-scrollbar'
 import 'perfect-scrollbar/css/perfect-scrollbar.css'
-import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import RecordItem from '../components/RecordItem.vue'
 
@@ -24,8 +23,8 @@ onBeforeUnmount(() => {
   ps.value?.destroy()
 })
 
-listen<Multipaste.ClipboardRecord[]>('fill-records', async (event) => {
-  items.value = event.payload
+onMounted(() => {
+  filterRecords()
 })
 
 watch(keyword, filterRecords)

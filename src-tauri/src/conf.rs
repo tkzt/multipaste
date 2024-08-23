@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::Mutex;
 
 use log::warn;
@@ -72,7 +71,7 @@ pub fn update_max_items(
     max_items: u64,
     app_handle: AppHandle,
     config: State<Mutex<Config>>,
-    store: State<Arc<RecordStore>>,
+    store: State<RecordStore>,
 ) -> bool {
     if let Ok(mut config) = config.lock() {
         if max_items <= 0 || store.update_max_records_trigger(max_items).is_err() {

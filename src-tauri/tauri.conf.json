@@ -9,7 +9,14 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [],
+    "windows": [
+      {
+        "label": "background",
+        "url": "",
+        "visible": false,
+        "decorations": false
+      }
+    ],
     "security": {
       "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: https://asset.localhost",
       "assetProtocol": {

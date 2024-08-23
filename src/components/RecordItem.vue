@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { useMouseInElement } from '@vueuse/core'
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import AsyncImage from './AsyncImage.vue'
 
 defineProps<{

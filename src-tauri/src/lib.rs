@@ -9,23 +9,19 @@ mod store;
 mod tray;
 mod windows;
 
-use tauri::{ActivationPolicy, App, Manager, Window, WindowEvent};
+use tauri::{ActivationPolicy, App, Window, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
-use tauri_plugin_positioner::{Position, WindowExt};
-use windows::create_main_window;
 
 fn setup(app: &mut App) -> std::result::Result<(), Box<dyn std::error::Error>> {
     // to hide icon in dock
     app.set_activation_policy(ActivationPolicy::Accessory);
 
-    create_main_window(app.app_handle())?;
-
     tray::init(app);
     conf::init(app)?;
     let store = store::init(app)?;
-    clipboard::listen(store);
     awake::init(app)?;
+    clipboard::init(store);
 
     Ok(())
 }
@@ -34,12 +30,7 @@ fn on_window_event(window: &Window, event: &WindowEvent) {
     match event {
         WindowEvent::Focused(focused) => {
             if !focused {
-                if window.label() == "main" {
-                    window.move_window(Position::Center).unwrap();
-                    window.hide().unwrap();
-                } else {
-                    window.close().unwrap();
-                }
+                window.close().unwrap();
             }
         }
         _ => (),

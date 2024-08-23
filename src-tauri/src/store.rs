@@ -107,8 +107,7 @@ impl RecordStore {
 
     pub fn update_max_records_trigger(&self, max_records: u64) -> Result<()> {
         let conn = self.get_conn();
-        let stmt = &format!(
-            "
+        let stmt = &format!("
             drop trigger if exists limit_records_amount;
             create trigger limit_records_amount
             after insert on clipboard_record
@@ -118,8 +117,7 @@ impl RecordStore {
                     select id from clipboard_record
                     order by pinned desc, updated_at desc limit -1 offset {0}
                 ) and (select count(*) from clipboard_record) > {0};
-            end;",
-            max_records
+            end;", max_records
         );
         conn.execute_batch(stmt)?;
         Ok(())
@@ -239,10 +237,10 @@ impl RecordStore {
                     }
                 })
             } else {
-                warn!("Failed to glob images")
+                warn!("Failed to glob images");
             }
         } else {
-            warn!("Failed to get image directory")
+            warn!("Failed to get image directory");
         }
         Ok(())
     }
@@ -250,18 +248,20 @@ impl RecordStore {
     pub fn save_image(&self, image_bytes: &[u8]) -> Result<()> {
         let image_hash = self.calc_hash(image_bytes);
         let image_path = self.img_dir.join(format!("{}.png", image_hash));
-
+    
         let exists = self.save(
             &RecordType::Image,
             image_path.to_str().unwrap(),
             Some(&image_hash),
         )?;
         if !exists {
-            std::fs::write(&image_path, image_bytes).unwrap();
+            if let Err(write_err) = std::fs::write(&image_path, image_bytes) {
+                warn!("Failed to save image: {:?}", write_err);
+            }
         }
-
+    
         self.clean_dangling_images()?;
-
+    
         Ok(())
     }
 
@@ -374,7 +374,7 @@ pub fn filter_records(store: State<Arc<RecordStore>>, keyword: String) -> Vec<Cl
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgba};
+    use image::{DynamicImage, ImageBuffer, ImageFormat, Rgba};
     use rusqlite::Error;
     use std::{io::Cursor, path::Path, sync::Mutex, thread::sleep, time::Duration};
 
@@ -434,7 +434,7 @@ mod tests {
         let dynamic_image = DynamicImage::ImageRgba8(img_value);
         let mut img_bytes: Vec<u8> = Vec::new();
         dynamic_image
-            .write_to(&mut Cursor::new(&mut img_bytes), ImageOutputFormat::Png)
+            .write_to(&mut Cursor::new(&mut img_bytes), ImageFormat::Png)
             .unwrap();
 
         store.save_image(&img_bytes)?;

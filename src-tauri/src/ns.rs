@@ -1,10 +1,9 @@
 extern crate cocoa;
 extern crate objc;
 
-use accessibility_ng::{AXAttribute, AXUIElement, AXValue};
-use accessibility_sys_ng::{
-    kAXBoundsForRangeParameterizedAttribute, kAXFocusedUIElementAttribute,
-    kAXFocusedWindowAttribute, kAXRaiseAction, kAXSelectedTextRangeAttribute,
+use accessibility::{AXAttribute, AXUIElement};
+use accessibility_sys::{
+    kAXFocusedWindowAttribute, kAXRaiseAction,
     kAXWindowsAttribute, AXError,
     AXUIElementCopyAttributeValues, AXUIElementCreateApplication, AXUIElementPerformAction,
     AXUIElementRef,
@@ -19,7 +18,7 @@ use core_foundation::{
     base::TCFType,
     string::CFString,
 };
-use core_graphics::display::{CGRect, CGWindowID};
+use core_graphics::display::CGWindowID;
 use log::{info, warn};
 use objc::{msg_send, runtime::Class, sel, sel_impl};
 
@@ -31,47 +30,6 @@ extern "C" {
 pub struct WindowInfo {
     app_pid: i32,
     window_id: u32,
-}
-
-fn get_cursor_position() -> Option<CGRect> {
-    let system_element = AXUIElement::system_wide();
-    let Some(focused_element) = system_element
-        .attribute(&AXAttribute::new(&CFString::from_static_string(
-            kAXFocusedUIElementAttribute,
-        )))
-        .map(|el| el.downcast_into::<AXUIElement>())
-        .ok()
-        .flatten()
-    else {
-        warn!("Failed to get the focused element");
-        return None;
-    };
-    let Some(selection_range_value) = focused_element
-        .attribute(&AXAttribute::new(&CFString::from_static_string(
-            kAXSelectedTextRangeAttribute,
-        )))
-        .map(|value| value.downcast_into::<AXValue>())
-        .ok()
-        .flatten()
-    else {
-        warn!("Nothing selected.");
-        return None;
-    };
-    let Some(selection_bounds_value) = focused_element
-        .parameterized_attribute(
-            &AXAttribute::new(&CFString::from_static_string(
-                kAXBoundsForRangeParameterizedAttribute,
-            )),
-            &selection_range_value,
-        )
-        .map(|value| value.downcast_into::<AXValue>())
-        .ok()
-        .flatten()
-    else {
-        return None;
-    };
-    let position = selection_bounds_value.get_value::<CGRect>();
-    position.ok()
 }
 
 pub fn get_active_window_info() -> Option<WindowInfo> {
@@ -95,11 +53,7 @@ pub fn get_active_window_info() -> Option<WindowInfo> {
             };
             let mut window_id: u32 = 0;
             _AXUIElementGetWindow(focused_window.as_concrete_TypeRef(), &mut window_id);
-            if let Some(position) = get_cursor_position() {
-                info!("Cursor position: {:?}", position);
-            } else {
-                warn!("Failed to get cursor position");
-            }
+            info!("Active app pid: {}, window id: {}", app_pid, window_id);
             return Some(WindowInfo { app_pid, window_id });
         } else {
             warn!("None active app found.")
