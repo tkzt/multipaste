@@ -1,0 +1,10 @@
+create table if not exists clipboard_record (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  record_type TEXT NOT NULL CHECK (RECORD_TYPE IN ('image', 'text')),
+  record_value TEXT NOT NULL UNIQUE,
+  record_hash VARCHAR(32) UNIQUE DEFAULT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  pinned BOOLEAN NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS IDX_HASH ON CLIPBOARD_RECORD(record_hash);

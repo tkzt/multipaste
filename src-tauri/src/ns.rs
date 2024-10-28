@@ -3,8 +3,7 @@ extern crate objc;
 
 use accessibility::{AXAttribute, AXUIElement};
 use accessibility_sys::{
-    kAXFocusedWindowAttribute, kAXRaiseAction,
-    kAXWindowsAttribute, AXError,
+    kAXFocusedWindowAttribute, kAXRaiseAction, kAXWindowsAttribute, AXError,
     AXUIElementCopyAttributeValues, AXUIElementCreateApplication, AXUIElementPerformAction,
     AXUIElementRef,
 };

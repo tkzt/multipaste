@@ -14,7 +14,8 @@ use tauri::{App, AppHandle, Manager, State};
 use crate::{
     clipboard,
     ns::{activate_window, get_active_window_info, WindowInfo},
-    store::{RecordStore, RecordType}, windows::create_main_window,
+    store::{RecordStore, RecordType},
+    windows::create_main_window,
 };
 
 struct AwakeState {
@@ -26,7 +27,7 @@ fn paste() {
     enigo.key(Key::Meta, Press).unwrap();
     thread::sleep(Duration::from_millis(100));
     enigo.key(Key::Unicode('v'), Click).unwrap();
-    thread::sleep(Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(370));
     enigo.key(Key::Meta, Release).unwrap();
 }
 
@@ -73,8 +74,10 @@ pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
 }
 
 #[tauri::command]
-pub fn copy_record(app_handle: AppHandle, store: State<Arc<RecordStore>>, id: u64) {
-    if let (Ok(record), Some(main_window)) = (store.get_record(&id), app_handle.get_webview_window("main")) {
+pub fn copy_record(app_handle: AppHandle, store: State<Arc<RecordStore>>, id: i32) {
+    if let (Ok(record), Some(main_window)) =
+        (store.get_record(&id), app_handle.get_webview_window("main"))
+    {
         if let Ok(_) = main_window.close() {
             if record.record_type == RecordType::Text {
                 info!("Copying text: {}", record.record_value);
@@ -82,7 +85,7 @@ pub fn copy_record(app_handle: AppHandle, store: State<Arc<RecordStore>>, id: u6
             } else {
                 clipboard::write_image(&store.img_dir.join(record.record_value));
             }
-    
+
             if let Some(active_window) = &app_handle
                 .state::<Mutex<AwakeState>>()
                 .lock()
