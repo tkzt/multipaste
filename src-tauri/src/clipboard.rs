@@ -1,45 +1,47 @@
 use clipboard_rs::common::RustImage;
-use clipboard_rs::{Clipboard, ClipboardContext, ClipboardHandler, ClipboardWatcher, ClipboardWatcherContext};
+use clipboard_rs::{
+    Clipboard, ClipboardContext, ClipboardHandler, ClipboardWatcher, ClipboardWatcherContext,
+};
 use image::ImageFormat;
 use log::{error, info, warn};
 use std::io::Cursor;
-use std::thread;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::thread;
 
 use crate::store::RecordStore;
 
-
 pub struct ClipboardManager {
     ctx: ClipboardContext,
-    store: Arc<RecordStore>
+    store: Arc<RecordStore>,
 }
 
 impl ClipboardManager {
-	pub fn new(store: Arc<RecordStore>) -> Self {
-		let ctx = ClipboardContext::new().unwrap();
-		ClipboardManager { ctx, store }
-	}
+    pub fn new(store: Arc<RecordStore>) -> Self {
+        let ctx = ClipboardContext::new().unwrap();
+        ClipboardManager { ctx, store }
+    }
 }
 
 impl ClipboardHandler for ClipboardManager {
-	fn on_clipboard_change(&mut self) {
-		if let Ok(text) = self.ctx.get_text() {
+    fn on_clipboard_change(&mut self) {
+        if let Ok(text) = self.ctx.get_text() {
             if !text.trim().is_empty() {
-                if let Err(err) = self.store.save_text(&text.to_string()){
+                if let Err(err) = self.store.save_text(&text.to_string()) {
                     error!("Error saving text: {}", err);
                 }
             } else {
                 warn!("Empty text in clipboard.");
             }
         }
-        
+
         if let Ok(img) = self.ctx.get_image() {
             let img_size = img.get_size();
             info!("Image detected: {}x{}", img_size.0, img_size.1);
             let mut img_bytes: Vec<u8> = Vec::new();
             if let Ok(img_data) = img.get_dynamic_image() {
-                if let Ok(_) = img_data.write_to(&mut Cursor::new(&mut img_bytes), ImageFormat::Png) {
+                if let Ok(_) = img_data.write_to(&mut Cursor::new(&mut img_bytes), ImageFormat::Png)
+                {
                     if let Err(err) = self.store.save_image(&img_bytes) {
                         error!("Error saving image: {}", err);
                     }
@@ -48,7 +50,7 @@ impl ClipboardHandler for ClipboardManager {
                 }
             }
         }
-	}
+    }
 }
 
 pub fn write_text(text: &str) -> bool {
@@ -80,7 +82,8 @@ pub fn write_image(image_path: &PathBuf) -> bool {
 
 pub fn init(store: Arc<RecordStore>) {
     let manager = ClipboardManager::new(store);
-    let mut watcher: ClipboardWatcherContext<ClipboardManager> = ClipboardWatcherContext::new().unwrap();
+    let mut watcher: ClipboardWatcherContext<ClipboardManager> =
+        ClipboardWatcherContext::new().unwrap();
     watcher.add_handler(manager);
     thread::spawn(move || {
         watcher.start_watch();

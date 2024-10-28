@@ -1,29 +1,43 @@
-use chrono::Local;
+use crate::{conf::Config, schema};
+use chrono::{Local, NaiveDateTime};
 use crypto::{digest::Digest, sha2::Sha256};
+use diesel::{
+    connection::SimpleConnection,
+    deserialize::{FromSql, FromSqlRow},
+    expression::AsExpression,
+    prelude::{Insertable, Queryable, QueryableByName},
+    serialize::{IsNull, ToSql},
+    sql_types::{SqlType, Text},
+    sqlite::Sqlite,
+    BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, Selectable, SelectableHelper,
+    SqliteConnection, TextExpressionMethods,
+};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use dotenvy::dotenv;
+use glob::glob;
 use log::warn;
-use r2d2::{Pool, PooledConnection};
-use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{
-    params,
     types::{FromSqlError, Type as RSType},
-    Error as RusqliteError, Result,
+    Error as RusqliteError,
 };
 use serde::{Serialize, Serializer};
 use std::{
-    fs, path::{Path, PathBuf}, sync::{Arc, Mutex}
+    env,
+    fs::{self, File},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 use tauri::{App, Manager, State};
-use glob::glob;
 
-use crate::conf::Config;
+type Result<T, E = diesel::result::Error> = std::result::Result<T, E>;
 
-type DbPool = Arc<Pool<SqliteConnectionManager>>;
-
-const DB_PATH: &str = "data.db";
-const IMG_DIR_PATH: &str = "images";
+const DB_PATH_VAR: &str = "DATABASE_URL";
+const IMG_DIR_VAR: &str = "IMG_DIR_PATH";
 const MIN_TEXT_HASHING_SIZE: usize = 50;
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-#[derive(Debug)]
+#[derive(SqlType, Debug, FromSqlRow, Copy, Clone, AsExpression)]
+#[diesel(sql_type = diesel::sql_types::Text)]
 pub enum RecordType {
     Image,
     Text,
@@ -67,77 +81,99 @@ impl RecordType {
     }
 }
 
+impl ToSql<Text, Sqlite> for RecordType {
+    fn to_sql<'b>(
+        &'b self,
+        out: &mut diesel::serialize::Output<'b, '_, Sqlite>,
+    ) -> diesel::serialize::Result {
+        out.set_value(self.to_string());
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<Text, Sqlite> for RecordType {
+    fn from_sql(
+        bytes: <Sqlite as diesel::backend::Backend>::RawValue<'_>,
+    ) -> diesel::deserialize::Result<Self> {
+        Ok(<String as FromSql<Text, Sqlite>>::from_sql(bytes)
+            .map(|s| RecordType::from_string(&s))
+            .unwrap()?)
+    }
+}
+
 #[derive(Debug)]
 pub struct RecordStore {
-    pool: DbPool,
+    pool: r2d2::Pool<diesel::r2d2::ConnectionManager<SqliteConnection>>,
     pub img_dir: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Queryable, Selectable, QueryableByName, Serialize, Debug)]
+#[diesel(table_name = schema::clipboard_record)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct ClipboardRecord {
-    pub id: u64,
+    pub id: i32,
     pub record_type: RecordType,
     // For image, the record value will be like
     // <IMG_DIR>/<sha256_hash>.png
     pub record_value: String,
-    pub hash: Option<String>,
-    pub updated_at: u64,
+    pub record_hash: Option<String>,
+    pub updated_at: NaiveDateTime,
     pub pinned: bool,
 }
 
+#[derive(Insertable)]
+#[diesel(table_name = schema::clipboard_record)]
+pub struct NewClipboardRecord<'a> {
+    pub record_type: &'a RecordType,
+    pub record_hash: Option<&'a str>,
+    pub record_value: &'a str,
+}
+
 impl RecordStore {
-    pub fn new(db_url: PathBuf, img_dir: PathBuf) -> Self {
-        std::fs::create_dir_all(&img_dir).unwrap();
-        if let Some(path) = db_url.parent() {
-            std::fs::create_dir_all(path).unwrap();
+    pub fn new(db_path: PathBuf, img_dir: PathBuf) -> Self {
+        std::fs::create_dir_all(&img_dir).expect("Failed to create image directory");
+        if !db_path.exists() {
+            if let Some(path) = db_path.parent() {
+                std::fs::create_dir_all(path).expect("Failed to create db directory");
+            }
+            File::create(&db_path).expect("Failed to create db file");
         }
-        let manager = SqliteConnectionManager::file(db_url);
-        let pool = Pool::new(manager).expect("Failed to create pool.");
-        RecordStore {
-            pool: Arc::new(pool),
-            img_dir,
-        }
+        let manager =
+            diesel::r2d2::ConnectionManager::<SqliteConnection>::new(db_path.to_str().unwrap());
+        let pool = r2d2::Pool::builder()
+            .build(manager)
+            .expect("Failed to initialize pool");
+        RecordStore { pool, img_dir }
     }
 
-    pub fn get_conn(&self) -> PooledConnection<SqliteConnectionManager> {
-        self.pool
-            .get()
-            .expect("Failed to get a connection from the pool.")
+    pub fn get_conn(
+        &self,
+    ) -> r2d2::PooledConnection<diesel::r2d2::ConnectionManager<SqliteConnection>> {
+        self.pool.get().expect("Failed to get connection")
     }
 
     pub fn update_max_records_trigger(&self, max_records: u64) -> Result<()> {
-        let conn = self.get_conn();
-        let stmt = &format!("
-            drop trigger if exists limit_records_amount;
-            create trigger limit_records_amount
-            after insert on clipboard_record
-            begin
-                delete from clipboard_record
-                where id in (
-                    select id from clipboard_record
-                    order by pinned desc, updated_at desc limit -1 offset {0}
-                ) and (select count(*) from clipboard_record) > {0};
-            end;", max_records
+        let conn = &mut self.get_conn();
+        let stmt = &format!(
+            "
+            DROP TRIGGER IF EXISTS limit_records_amount;
+            CREATE TRIGGER limit_records_amount
+            AFTER INSERT ON clipboard_record
+            BEGIN
+                DELETE FROM clipboard_record
+                WHERE id IN (
+                    SELECT id FROM clipboard_record
+                    ORDER BY pinned DESC, updated_at DESC LIMIT -1 OFFSET {0}
+                ) AND (SELECT COUNT(*) FROM clipboard_record) > {0};
+            END;",
+            max_records
         );
-        conn.execute_batch(stmt)?;
+        conn.batch_execute(stmt)
+            .expect("Failed to update max records trigger");
         Ok(())
     }
 
     pub fn init(&self, max_records: u64) -> Result<()> {
-        let conn = self.get_conn();
-        conn.execute_batch(
-            "
-            create table if not exists clipboard_record (
-                id integer primary key autoincrement,
-                record_type text not null check (record_type in ('image', 'text')),
-                record_value text not null unique,
-                hash varchar(32) unique,
-                updated_at integer not null,
-                pinned integer not null default 0 check (pinned in (0, 1))
-            );
-            create index if not exists idx_hash on clipboard_record(hash);
-        ",
-        )?;
         self.update_max_records_trigger(max_records)?;
         Ok(())
     }
@@ -152,35 +188,31 @@ impl RecordStore {
         &self,
         record_type: &RecordType,
         record_value: &str,
-        hash: Option<&str>,
+        record_hash: Option<&str>,
     ) -> Result<bool> {
-        let conn = self.get_conn();
-        let updated_rows = conn.execute(
-            "
-            update clipboard_record
-            set updated_at = ?3
-            where
-                case
-                    when ?2 is null then record_value = ?1
-                    else hash = ?2
-                end
-            ",
-            params![record_value, hash, Local::now().timestamp()],
-        )?;
+        let conn = &mut self.get_conn();
+        let updated_rows = diesel::update(
+            schema::clipboard_record::table.filter(
+                schema::clipboard_record::dsl::record_hash
+                    .is_not_null()
+                    .and(schema::clipboard_record::dsl::record_hash.eq(record_hash))
+                    .or(schema::clipboard_record::dsl::record_value.eq(record_value)),
+            ),
+        )
+        .set(schema::clipboard_record::updated_at.eq(Local::now().naive_local()))
+        .execute(conn)?;
+        log::info!("Updated rows: {}", updated_rows);
 
         if updated_rows == 0 {
-            conn.execute(
-                "
-                insert into clipboard_record (record_type, record_value, hash, updated_at)
-                values (?1, ?2, ?3, ?4)
-                ",
-                params![
-                    record_type.to_string(),
+            let inserted = diesel::insert_into(schema::clipboard_record::table)
+                .values(&NewClipboardRecord {
+                    record_type,
                     record_value,
-                    hash,
-                    Local::now().timestamp()
-                ],
-            )?;
+                    record_hash,
+                })
+                .returning(ClipboardRecord::as_returning())
+                .get_result::<ClipboardRecord>(conn)?;
+            log::info!("Inserted record: {:?}", inserted);
         }
         Ok(updated_rows > 0)
     }
@@ -197,24 +229,38 @@ impl RecordStore {
     }
 
     fn filter_dangling_images(&self, hashes: &Vec<String>) -> Result<Vec<String>> {
-        let conn = self.get_conn();
+        let conn = &mut self.get_conn();
         let hash_values: Vec<String> = hashes.iter().map(|h| format!("('{}')", h)).collect();
-        let batch_stmt = format!("
-            drop table if exists temp_hashes;
-            create table temp_hashes (hash varchar(32));
-            insert into temp_hashes (hash) values {};
-        ", hash_values.join(","));
-        conn.execute_batch(&batch_stmt)?;
-        let mut filter_stmt = conn.prepare("
-            select temp_hashes.hash
-            from temp_hashes
-            left join clipboard_record on temp_hashes.hash = clipboard_record.hash
-            where clipboard_record.hash is null;
-        ")?;
-        let image_hashes = filter_stmt.query_map([], |row| {
-            row.get::<_, String>(0)
-        })?;
-        Ok(image_hashes.flatten().collect::<Vec<String>>())
+
+        let batch_stmt = format!(
+            "
+            DROP TABLE IF EXISTS temp_hashes;
+            CREATE TABLE temp_hashes (record_hash VARCHAR(32));
+            INSERT INTO temp_hashes (record_hash) VALUES {};
+            ",
+            hash_values.join(",")
+        );
+        conn.batch_execute(&batch_stmt)?;
+
+        #[derive(QueryableByName)]
+        struct HashQueryResult {
+            #[diesel(sql_type = Text)]
+            record_hash: String,
+        }
+
+        let image_hashes: Vec<String> = diesel::sql_query(
+            "
+            SELECT temp_hashes.record_hash
+            FROM temp_hashes
+            LEFT JOIN clipboard_record ON temp_hashes.record_hash = clipboard_record.record_hash
+            WHERE clipboard_record.record_hash IS NULL;
+            ",
+        )
+        .load::<HashQueryResult>(conn)?
+        .into_iter()
+        .map(|hash_result| hash_result.record_hash)
+        .collect();
+        Ok(image_hashes)
     }
 
     fn clean_dangling_images(&self) -> Result<()> {
@@ -222,11 +268,13 @@ impl RecordStore {
             if let Ok(paths) = glob(&format!("{}/*.png", img_dir)) {
                 let hashes: Vec<String> = paths
                     .flatten()
-                    .filter_map(
-                        |image_path| image_path.file_stem().and_then(
-                            |p| p.to_str()
-                        ).map(|s| s.to_owned())
-                    ).collect();
+                    .filter_map(|image_path| {
+                        image_path
+                            .file_stem()
+                            .and_then(|p| p.to_str())
+                            .map(|s| s.to_owned())
+                    })
+                    .collect();
                 let dangling_hashes = self.filter_dangling_images(&hashes)?;
                 dangling_hashes.iter().for_each(|hash| {
                     let image_path = Path::new(&format!("{}/{}.png", img_dir, hash)).to_path_buf();
@@ -248,7 +296,7 @@ impl RecordStore {
     pub fn save_image(&self, image_bytes: &[u8]) -> Result<()> {
         let image_hash = self.calc_hash(image_bytes);
         let image_path = self.img_dir.join(format!("{}.png", image_hash));
-    
+
         let exists = self.save(
             &RecordType::Image,
             image_path.to_str().unwrap(),
@@ -259,106 +307,95 @@ impl RecordStore {
                 warn!("Failed to save image: {:?}", write_err);
             }
         }
-    
+
         self.clean_dangling_images()?;
-    
+
         Ok(())
     }
 
-    pub fn pin(&self, id: &u64) -> Result<()> {
-        let conn = self.get_conn();
-        conn.execute("update clipboard_record set pinned = 1 where id = ?1", [id])?;
-        Ok(())
+    pub fn pin(&self, id: &i32) -> Result<ClipboardRecord> {
+        let conn = &mut self.get_conn();
+        let updated = diesel::update(schema::clipboard_record::table.find(id))
+            .set(schema::clipboard_record::pinned.eq(true))
+            .returning(ClipboardRecord::as_returning())
+            .get_result(conn)?;
+        Ok(updated)
     }
 
-    pub fn unpin(&self, id: &u64) -> Result<()> {
-        let conn = self.get_conn();
-        conn.execute("update clipboard_record set pinned = 0 where id = ?1", [id])?;
-        Ok(())
+    pub fn unpin(&self, id: &i32) -> Result<ClipboardRecord> {
+        let conn = &mut self.get_conn();
+        let updated = diesel::update(schema::clipboard_record::table.find(id))
+            .set(schema::clipboard_record::pinned.eq(false))
+            .returning(ClipboardRecord::as_returning())
+            .get_result(conn)?;
+        Ok(updated)
     }
 
-    pub fn delete(&self, id: &u64) -> Result<()> {
-        let conn = self.get_conn();
-        conn.execute("delete from clipboard_record where id = ?1", [id.clone()])?;
-        Ok(())
+    pub fn delete(&self, id: &i32) -> Result<usize> {
+        let conn = &mut self.get_conn();
+        let deleted = diesel::delete(schema::clipboard_record::table.find(id)).execute(conn)?;
+        Ok(deleted)
     }
 
-    pub fn get_records(&self, keyword: &str) -> Result<Vec<ClipboardRecord>> {
-        let conn = self.get_conn();
-        let mut stmt = conn.prepare(
-            "
-            select
-                id, record_type, record_value, hash, updated_at, pinned
-            from clipboard_record
-            where
-                lower(record_value) like ?1
-            order by
-                pinned desc, updated_at desc
-        ")?;
-
-        let records = stmt.query_map([format!("%{}%", keyword.to_lowercase())], |row| {
-            Ok(ClipboardRecord {
-                id: row.get(0)?,
-                record_type: RecordType::from_string(&row.get::<_, String>(1)?)?,
-                record_value: row.get(2)?,
-                hash: row.get(3)?,
-                updated_at: row.get::<_, u64>(4)?,
-                pinned: row.get::<_, bool>(5)?,
-            })
-        })?;
-
-        let clipboard_record = records.collect::<Result<Vec<ClipboardRecord>>>()?;
-        Ok(clipboard_record)
+    pub fn get_records(&self, keyword: &str) -> Vec<ClipboardRecord> {
+        let conn = &mut self.get_conn();
+        let records = schema::clipboard_record::table
+            .filter(schema::clipboard_record::dsl::record_value.like(format!("%{}%", keyword)))
+            .order((
+                schema::clipboard_record::dsl::pinned.desc(),
+                schema::clipboard_record::dsl::updated_at.desc(),
+            ))
+            .load::<ClipboardRecord>(conn)
+            .unwrap_or(vec![]);
+        records
     }
 
-    pub fn get_record(&self, id: &u64) -> Result<ClipboardRecord> {
-        let conn = self.get_conn();
-        let row = conn.query_row(
-            "
-                select
-                    id, record_type, record_value, hash, updated_at, pinned
-                from clipboard_record
-                where id = ?1
-            ",
-            [id],
-            |row| {
-                Ok(ClipboardRecord {
-                    id: row.get(0)?,
-                    record_type: RecordType::from_string(&row.get::<_, String>(1)?)?,
-                    record_value: row.get(2)?,
-                    hash: row.get(3)?,
-                    updated_at: row.get::<_, u64>(4)?,
-                    pinned: row.get::<_, bool>(5)?,
-                })
-            },
-        )?;
-        Ok(row)
+    pub fn get_record(&self, id: &i32) -> Result<ClipboardRecord> {
+        let conn = &mut self.get_conn();
+        let record = schema::clipboard_record::table
+            .find(id)
+            .first::<ClipboardRecord>(conn)?;
+        Ok(record)
     }
 }
 
 pub fn init(app: &App) -> Result<Arc<RecordStore>, Box<dyn std::error::Error>> {
+    dotenv().ok();
+
     let config = app.state::<Mutex<Config>>();
     let app_data_path = app.path().app_data_dir().unwrap();
-    let db_url = app_data_path.join(DB_PATH);
-    let img_dir = app_data_path.join(IMG_DIR_PATH);
-    let store = Arc::new(RecordStore::new(db_url, img_dir));
+    let db_url_str = env::var(DB_PATH_VAR).expect(format!("{} is not set", DB_PATH_VAR).as_str());
+    let img_dir_str = env::var(IMG_DIR_VAR).expect(format!("{} is not set", IMG_DIR_VAR).as_str());
+
+    let db_url = app_data_path.join(db_url_str);
+    let img_dir = app_data_path.join(img_dir_str);
+
+    log::debug!("DB path: {:?}", db_url);
+    log::debug!("Image dir: {:?}", img_dir);
+
+    let store = Arc::new(RecordStore::new(db_url.clone(), img_dir));
+
+    let conn = &mut store.get_conn();
+    conn.run_pending_migrations(MIGRATIONS)
+        .expect("Failed to run migrations");
+
     store.init(config.lock().unwrap().max_items)?;
     app.manage(store.clone());
     return Ok(store);
 }
 
 #[tauri::command]
-pub fn pin_record(store: State<Arc<RecordStore>>, id: u64) {
+pub fn pin_record(store: State<Arc<RecordStore>>, id: i32) {
     store.pin(&id).unwrap();
 }
 
 #[tauri::command]
-pub fn unpin_record(store: State<Arc<RecordStore>>, id: u64) {
+pub fn unpin_record(store: State<Arc<RecordStore>>, id: i32) {
     store.unpin(&id).unwrap();
 }
 
 #[tauri::command]
-pub fn delete_record(store: State<Arc<RecordStore>>, id: u64) {
+pub fn delete_record(store: State<Arc<RecordStore>>, id: i32) {
     let record = store.get_record(&id).unwrap();
     if record.record_type == RecordType::Image {
         std::fs::remove_file(store.img_dir.join(record.record_value)).unwrap();
@@ -368,29 +405,35 @@ pub fn delete_record(store: State<Arc<RecordStore>>, id: u64) {
 
 #[tauri::command]
 pub fn filter_records(store: State<Arc<RecordStore>>, keyword: String) -> Vec<ClipboardRecord> {
-    store.get_records(&keyword).unwrap()
+    store.get_records(&keyword)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dotenvy::dotenv;
     use image::{DynamicImage, ImageBuffer, ImageFormat, Rgba};
-    use rusqlite::Error;
-    use std::{io::Cursor, path::Path, sync::Mutex, thread::sleep, time::Duration};
+    use log::LevelFilter;
+    use std::{io::Cursor, thread::sleep, time::Duration};
 
     const TEXT_VALUE: &str = "foo";
     const SOME_TEXT_NOT_IN_DB: &str = "Dolor culpa ut nisi qui veniam proident Lorem proident enim ea. Consequat adipisicing officia consectetur do sit deserunt. Veniam nostrud laboris ipsum sunt deserunt ex nulla minim nostrud voluptate consequat excepteur. Consequat tempor sint adipisicing minim anim. Ad eu nisi id in culpa qui ut eiusmod minim veniam ea. Esse non voluptate eiusmod officia duis consectetur dolore eu nulla ullamco labore id nulla.";
 
     struct SharedData {
-        text_record_id: u64,
-        img_record_id: u64,
+        text_record_id: i32,
+        img_record_id: i32,
     }
 
     lazy_static::lazy_static! {
-        static ref SHARED_STORE: Mutex<RecordStore> = Mutex::new(RecordStore::new(
-            Path::new(DB_PATH).to_path_buf(),
-            Path::new(IMG_DIR_PATH).to_path_buf())
-        );
+        static ref SHARED_STORE: Mutex<RecordStore> = {
+            dotenv().ok();
+            env_logger::builder()
+            .filter_level(LevelFilter::Debug)
+            .init();
+            Mutex::new(RecordStore::new(
+            Path::new(&env::var(DB_PATH_VAR).unwrap()).to_path_buf(),
+            Path::new(&env::var(IMG_DIR_VAR).unwrap()).to_path_buf())
+        )};
         static ref SHARED_DATA: Mutex<SharedData> = Mutex::new(SharedData {text_record_id: 0, img_record_id: 0 });
     }
 
@@ -399,30 +442,31 @@ mod tests {
         let store = SHARED_STORE.lock().unwrap();
         let mut data = SHARED_DATA.lock().unwrap();
         store.init(2)?;
-        let conn = store.get_conn();
+        let conn = &mut store.get_conn();
 
         // text
-        store.save_text(TEXT_VALUE)?;
-        let record_id = conn
-            .query_row(
-                "
-                select
-                    id
-                from
-                    clipboard_record
-                where
-                    record_value = ?1
-                    and record_type = 'text'
-                ",
-                [TEXT_VALUE],
-                |row| {
-                    let id: u64 = row.get(0)?;
-                    Ok(id)
-                },
-            )
-            .unwrap();
-        assert!(record_id > 0);
+        let result = store.save_text(TEXT_VALUE);
+        assert!(result.is_ok());
 
+        let result = schema::clipboard_record::table
+            .filter(
+                schema::clipboard_record::dsl::record_value
+                    .eq(TEXT_VALUE)
+                    .and(
+                        schema::clipboard_record::dsl::record_type.eq(RecordType::Text.to_string()),
+                    ),
+            )
+            .first::<ClipboardRecord>(conn);
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.id > 0);
+        assert!(result.record_type == RecordType::Text);
+        assert!(result.updated_at < Local::now().naive_local());
+
+        data.text_record_id = result.id;
+
+        log::info!("Checking image saving");
         // image
         let img_value = ImageBuffer::from_fn(8, 8, |x, y| {
             if (x * y) % 2 == 0 {
@@ -437,42 +481,41 @@ mod tests {
             .write_to(&mut Cursor::new(&mut img_bytes), ImageFormat::Png)
             .unwrap();
 
-        store.save_image(&img_bytes)?;
+        let result = store.save_image(&img_bytes);
+        assert!(result.is_ok());
+
         let img_hash = store.calc_hash(&img_bytes);
-        let query_image_res = || -> (u64, u64) {
-            conn.query_row(
-                "
-                select
-                    id, updated_at
-                from
-                    clipboard_record
-                where
-                    hash = ?1
-                    and record_type = 'image'
-                ",
-                [&img_hash],
-                |row| {
-                    let id: u64 = row.get(0)?;
-                    let updated_at: u64 = row.get(1)?;
-                    Ok((id, updated_at))
-                },
-            )
-            .unwrap()
+        let image_path = format!("{}/{}.png", store.img_dir.to_str().unwrap(), &img_hash);
+        let mut query_image_res = move || -> (i32, NaiveDateTime) {
+            let img_res = schema::clipboard_record::table
+                .filter(
+                    schema::clipboard_record::dsl::record_value
+                        .eq(&image_path)
+                        .and(
+                            schema::clipboard_record::dsl::record_type
+                                .eq(RecordType::Image.to_string()),
+                        ),
+                )
+                .first::<ClipboardRecord>(conn);
+            let img_record = img_res.unwrap();
+            (img_record.id, img_record.updated_at)
         };
+
         let (img_record_id, updated_at) = query_image_res();
-        assert!(record_id > 0);
+        assert!(img_record_id > 0);
+        assert!(updated_at < Local::now().naive_local());
 
         // Make sure the time interval between the first saving and the second
         // is greater than 1 second.
         sleep(Duration::from_secs(1));
 
+        log::info!("Checking repeat saving");
         // Check repeat saving
         store.save_image(&img_bytes)?;
         let (img_record_id_repeat, updated_at_repeat) = query_image_res();
         assert_eq!(img_record_id, img_record_id_repeat);
         assert_ne!(updated_at, updated_at_repeat);
 
-        data.text_record_id = record_id;
         data.img_record_id = img_record_id;
         Ok(())
     }
@@ -485,12 +528,12 @@ mod tests {
         let record = store.get_record(&data.text_record_id)?;
         assert_eq!(record.id, data.text_record_id);
 
-        let records = store.get_records(TEXT_VALUE)?;
+        let records = store.get_records(TEXT_VALUE);
         assert!(records
             .iter()
             .any(|record| record.record_value == TEXT_VALUE));
 
-        let records = store.get_records(SOME_TEXT_NOT_IN_DB)?;
+        let records = store.get_records(SOME_TEXT_NOT_IN_DB);
         assert_eq!(records.len(), 0);
         Ok(())
     }
@@ -500,7 +543,7 @@ mod tests {
         let store = SHARED_STORE.lock().unwrap();
         let data = SHARED_DATA.lock().unwrap();
         store.pin(&data.text_record_id)?;
-        let records = store.get_records("").ok().unwrap();
+        let records = store.get_records("");
         let [record, ..] = records.as_slice() else {
             panic!("Empty records")
         };
@@ -508,15 +551,13 @@ mod tests {
         assert_eq!(record.pinned, true);
 
         store.unpin(&data.text_record_id)?;
-        let the_record_pinned: bool = store
-            .get_conn()
-            .query_row(
-                "select pinned from clipboard_record where id = ?1",
-                [data.text_record_id],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(the_record_pinned, false);
+
+        let conn = &mut store.get_conn();
+        let the_pinned_result = schema::clipboard_record::table
+            .find(record.id)
+            .first::<ClipboardRecord>(conn)?;
+
+        assert_eq!(the_pinned_result.pinned, false);
         Ok(())
     }
 
@@ -529,19 +570,15 @@ mod tests {
         store.save_text(text_value)?;
 
         let result = store.get_record(&data.text_record_id);
-        assert!(matches!(result, Err(Error::QueryReturnedNoRows)));
+        assert!(result.is_err());
 
-        let newly_saved_record_id = store
-            .get_conn()
-            .query_row(
-                "select id from clipboard_record where record_value = ?1",
-                [text_value],
-                |r| r.get::<_, u64>(0),
-            )
-            .unwrap();
-        assert!(newly_saved_record_id > 0);
+        let conn = &mut store.get_conn();
+        let newly_saved_record_result = schema::clipboard_record::table
+            .filter(schema::clipboard_record::dsl::record_value.eq(text_value))
+            .first::<ClipboardRecord>(conn)?;
+        assert!(newly_saved_record_result.id > 0);
 
-        data.text_record_id = newly_saved_record_id;
+        data.text_record_id = newly_saved_record_result.id;
         Ok(())
     }
 
@@ -551,12 +588,17 @@ mod tests {
         let data = SHARED_DATA.lock().unwrap();
         store.delete(&data.text_record_id)?;
         store.delete(&data.img_record_id)?;
-        let result: Result<u64, Error> = store.get_conn().query_row(
-            "select id from clipboard_record where id = ?1 or id = ?2",
-            [data.text_record_id, data.img_record_id],
-            |r| r.get(0),
-        );
-        assert!(matches!(result, Err(Error::QueryReturnedNoRows)));
+
+        let conn = &mut store.get_conn();
+        let result = schema::clipboard_record::table
+            .filter(
+                schema::clipboard_record::dsl::id
+                    .eq(data.text_record_id)
+                    .or(schema::clipboard_record::dsl::id.eq(data.img_record_id)),
+            )
+            .first::<ClipboardRecord>(conn);
+
+        assert!(result.is_err());
         Ok(())
     }
 }

@@ -5,6 +5,7 @@ mod awake;
 mod clipboard;
 mod conf;
 mod ns;
+mod schema;
 mod store;
 mod tray;
 mod windows;
