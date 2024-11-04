@@ -1,6 +1,6 @@
 {
   "productName": "multipaste",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "identifier": "com.tkzt.multipaste",
   "build": {
     "beforeDevCommand": "pnpm dev",

@@ -1,6 +1,6 @@
 [package]
 name = "multipaste"
-version = "0.0.1"
+version = "0.1.0"
 description = "A clipboard manager."
 authors = ["Allen Tao"]
 license = "MIT"
@@ -43,7 +43,6 @@ accessibility = "0.1.6"
 accessibility-sys = "0.1.3"
 clipboard-rs = "0.1.11"
 diesel = { version = "2.2.4", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "chrono", "r2d2"] }
-dotenvy = "0.15"
 env_logger = "0.11.5"
 diesel_migrations = "2.2.0"
 

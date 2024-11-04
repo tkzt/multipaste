@@ -13,7 +13,6 @@ use diesel::{
     SqliteConnection, TextExpressionMethods,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use dotenvy::dotenv;
 use glob::glob;
 use log::warn;
 use rusqlite::{
@@ -22,7 +21,6 @@ use rusqlite::{
 };
 use serde::{Serialize, Serializer};
 use std::{
-    env,
     fs::{self, File},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -31,8 +29,8 @@ use tauri::{App, Manager, State};
 
 type Result<T, E = diesel::result::Error> = std::result::Result<T, E>;
 
-const DB_PATH_VAR: &str = "DATABASE_URL";
-const IMG_DIR_VAR: &str = "IMG_DIR_PATH";
+const DATABASE_URL: &str = "data.db";
+const IMG_DIR_PATH: &str = "images";
 const MIN_TEXT_HASHING_SIZE: usize = 50;
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
@@ -360,15 +358,11 @@ impl RecordStore {
 }
 
 pub fn init(app: &App) -> Result<Arc<RecordStore>, Box<dyn std::error::Error>> {
-    dotenv().ok();
-
     let config = app.state::<Mutex<Config>>();
     let app_data_path = app.path().app_data_dir().unwrap();
-    let db_url_str = env::var(DB_PATH_VAR).expect(format!("{} is not set", DB_PATH_VAR).as_str());
-    let img_dir_str = env::var(IMG_DIR_VAR).expect(format!("{} is not set", IMG_DIR_VAR).as_str());
 
-    let db_url = app_data_path.join(db_url_str);
-    let img_dir = app_data_path.join(img_dir_str);
+    let db_url = app_data_path.join(DATABASE_URL);
+    let img_dir = app_data_path.join(IMG_DIR_PATH);
 
     log::debug!("DB path: {:?}", db_url);
     log::debug!("Image dir: {:?}", img_dir);
@@ -411,7 +405,6 @@ pub fn filter_records(store: State<Arc<RecordStore>>, keyword: String) -> Vec<Cl
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dotenvy::dotenv;
     use image::{DynamicImage, ImageBuffer, ImageFormat, Rgba};
     use log::LevelFilter;
     use std::{io::Cursor, thread::sleep, time::Duration};
@@ -426,13 +419,12 @@ mod tests {
 
     lazy_static::lazy_static! {
         static ref SHARED_STORE: Mutex<RecordStore> = {
-            dotenv().ok();
             env_logger::builder()
             .filter_level(LevelFilter::Debug)
             .init();
             Mutex::new(RecordStore::new(
-            Path::new(&env::var(DB_PATH_VAR).unwrap()).to_path_buf(),
-            Path::new(&env::var(IMG_DIR_VAR).unwrap()).to_path_buf())
+            Path::new(DATABASE_URL).to_path_buf(),
+            Path::new(IMG_DIR_PATH).to_path_buf())
         )};
         static ref SHARED_DATA: Mutex<SharedData> = Mutex::new(SharedData {text_record_id: 0, img_record_id: 0 });
     }
