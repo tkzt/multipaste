@@ -125,6 +125,9 @@ pub struct NewClipboardRecord<'a> {
     pub record_type: &'a RecordType,
     pub record_hash: Option<&'a str>,
     pub record_value: &'a str,
+    // the default value set in DDL actually will not take effect
+    // due to the max-records trigger
+    pub updated_at: NaiveDateTime
 }
 
 impl RecordStore {
@@ -207,6 +210,7 @@ impl RecordStore {
                     record_type,
                     record_value,
                     record_hash,
+                    updated_at: Local::now().naive_local(),
                 })
                 .returning(ClipboardRecord::as_returning())
                 .get_result::<ClipboardRecord>(conn)?;
