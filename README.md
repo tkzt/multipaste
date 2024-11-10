@@ -19,6 +19,7 @@
 
 - UI
   - [Tauri](https://tauri.app/)
+  - [Vue](https://vuejs.org/)
   - [UnoCSS](https://unocss.dev/)
   - [VueUse](https://vueuse.org/)
   - [PerfectScrollbar](https://www.npmjs.com/package/perfect-scrollbar)
