@@ -18,6 +18,7 @@
 ## 配方
 
 - UI
+  - [Tauri](https://tauri.app/)
   - [UnoCSS](https://unocss.dev/)
   - [VueUse](https://vueuse.org/)
   - [PerfectScrollbar](https://www.npmjs.com/package/perfect-scrollbar)
