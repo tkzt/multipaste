@@ -4,18 +4,20 @@
     <h1 align="center">Multipaste</h1>
 </p>
 
-一个朴素的 MacOS 剪切板管理工具。
+## 简介
+
+[一个朴素的 MacOS 剪切板管理工具](https://tkzt.cn/blogs/240913_multipaste)。
 
 大概长[这样](https://www.bilibili.com/video/BV1scDaYcEeA)。
 
-## Features
+## 风味
 
 - 朴素
 - 支持图片、文字
 - 记录筛选
 - 记录置顶
 
-## 配方
+## 配料表
 
 - UI
   - [Tauri](https://tauri.app/)
@@ -30,3 +32,8 @@
   - [rusqlite](https://github.com/rusqlite/rusqlite)
   - [r2d2](https://github.com/sfackler/r2d2)
   - [diesel](https://github.com/diesel-rs/diesel)
+ 
+## 过敏原信息
+
+- 基于跨端框架的 MacOS 应用
+- 存在 Raw SQL
