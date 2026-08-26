@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { useMouseInElement } from '@vueuse/core'
-import { onBeforeUnmount, ref } from 'vue'
+import { ref } from 'vue'
 import AsyncImage from './AsyncImage.vue'
 
-defineProps<{
+const props = defineProps<{
   item: Multipaste.ClipboardRecord
+  keyword: string
 }>()
 defineEmits(['pin', 'unpin', 'deleteRecord'])
 const containerRef = ref<HTMLElement>()
@@ -17,6 +18,35 @@ function truncateText(text: string) {
   }
   return text
 }
+
+function highlightParts(text: string, keyword: string) {
+  const target = truncateText(text)
+  const query = keyword.trim()
+
+  if (!query)
+    return [{ text: target, isMatch: false }]
+
+  const haystack = target.toLocaleLowerCase()
+  const needle = query.toLocaleLowerCase()
+  const parts: Array<{ text: string, isMatch: boolean }> = []
+  let cursor = 0
+
+  while (cursor < target.length) {
+    const hit = haystack.indexOf(needle, cursor)
+    if (hit === -1) {
+      parts.push({ text: target.slice(cursor), isMatch: false })
+      break
+    }
+
+    if (hit > cursor)
+      parts.push({ text: target.slice(cursor, hit), isMatch: false })
+
+    parts.push({ text: target.slice(hit, hit + query.length), isMatch: true })
+    cursor = hit + query.length
+  }
+
+  return parts.length ? parts : [{ text: target, isMatch: false }]
+}
 </script>
 
 <template>
@@ -26,7 +56,13 @@ function truncateText(text: string) {
   >
     <div class="w-full overflow-hidden">
       <template v-if="item.record_type === 'text'">
-        {{ truncateText(item.record_value) }}
+        <span
+          v-for="(part, index) in highlightParts(item.record_value, props.keyword)"
+          :key="index"
+          :class="part.isMatch ? 'rounded bg-amber-200/70 px-0.5 dark:bg-amber-400/30' : ''"
+        >
+          {{ part.text }}
+        </span>
       </template>
       <suspense v-else>
         <template #fallback>

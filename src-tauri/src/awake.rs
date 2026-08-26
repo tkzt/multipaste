@@ -13,7 +13,7 @@ use tauri::{App, AppHandle, Manager, State};
 
 use crate::{
     clipboard,
-    ns::{activate_window, get_active_window_info, WindowInfo},
+    ns::{activate_window, get_active_window_info, insert_text_to_focused_element, WindowInfo},
     store::{RecordStore, RecordType},
     windows::create_main_window,
 };
@@ -22,13 +22,34 @@ struct AwakeState {
     active_window: Option<WindowInfo>,
 }
 
-fn paste() {
-    let mut enigo = Enigo::new(&Settings::default()).unwrap();
-    enigo.key(Key::Meta, Press).unwrap();
-    thread::sleep(Duration::from_millis(100));
-    enigo.key(Key::Unicode('v'), Click).unwrap();
-    thread::sleep(Duration::from_millis(370));
-    enigo.key(Key::Meta, Release).unwrap();
+fn paste_once() -> bool {
+    let Ok(mut enigo) = Enigo::new(&Settings::default()) else {
+        warn!("Failed to initialize enigo for simulated paste");
+        return false;
+    };
+
+    if enigo.key(Key::Meta, Press).is_err() {
+        return false;
+    }
+    thread::sleep(Duration::from_millis(20));
+
+    if enigo.key(Key::Unicode('v'), Click).is_err() {
+        let _ = enigo.key(Key::Meta, Release);
+        return false;
+    }
+    thread::sleep(Duration::from_millis(20));
+
+    enigo.key(Key::Meta, Release).is_ok()
+}
+
+fn paste_with_retry() -> bool {
+    for _ in 0..2 {
+        if paste_once() {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(40));
+    }
+    false
 }
 
 pub fn init(app: &App) -> Result<(), Box<dyn Error>> {
@@ -83,7 +104,8 @@ pub fn copy_record(app_handle: AppHandle, store: State<Arc<RecordStore>>, id: i3
                 info!("Copying text: {}", record.record_value);
                 clipboard::write_text(&record.record_value);
             } else {
-                clipboard::write_image(&store.img_dir.join(record.record_value));
+                let image_path = store.get_image_paste_path(&record);
+                clipboard::write_image(&image_path);
             }
 
             if let Some(active_window) = &app_handle
@@ -93,7 +115,14 @@ pub fn copy_record(app_handle: AppHandle, store: State<Arc<RecordStore>>, id: i3
                 .active_window
             {
                 activate_window(active_window);
-                paste();
+
+                if record.record_type == RecordType::Text
+                    && insert_text_to_focused_element(&record.record_value)
+                {
+                    info!("Inserted text via AX focused element.");
+                } else if !paste_with_retry() {
+                    warn!("Failed to paste record through simulated shortcut.");
+                }
             } else {
                 warn!("Failed to get active window.");
             }

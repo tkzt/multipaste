@@ -1,7 +1,7 @@
 {
   "name": "multipaste",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,8 @@
   "devDependencies": {
     "@antfu/eslint-config": "^2.24.1",
     "@iconify-json/mdi": "^1.1.68",
-    "@tauri-apps/api": ">=2.0.0-rc.0",
-    "@tauri-apps/cli": ">=2.0.0-rc.0",
+    "@tauri-apps/api": "2.0.0-rc.6",
+    "@tauri-apps/cli": "2.0.0-rc.6",
     "@tauri-apps/plugin-autostart": "2.0.0-rc.0",
     "@tauri-apps/plugin-fs": "2.0.0-rc.0",
     "@tauri-apps/plugin-global-shortcut": "2.0.0-rc.0",

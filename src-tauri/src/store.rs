@@ -1,6 +1,5 @@
 use crate::{conf::Config, schema};
 use chrono::{Local, NaiveDateTime};
-use crypto::{digest::Digest, sha2::Sha256};
 use diesel::{
     connection::SimpleConnection,
     deserialize::{FromSql, FromSqlRow},
@@ -14,24 +13,32 @@ use diesel::{
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use glob::glob;
+use image::{imageops::FilterType, ImageFormat};
 use log::warn;
 use rusqlite::{
     types::{FromSqlError, Type as RSType},
     Error as RusqliteError,
 };
 use serde::{Serialize, Serializer};
+use sha2::{Digest, Sha256};
 use std::{
+    collections::HashSet,
     fs::{self, File},
+    io::Cursor,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use tauri::{App, Manager, State};
+use unicode_normalization::UnicodeNormalization;
 
 type Result<T, E = diesel::result::Error> = std::result::Result<T, E>;
 
 const DATABASE_URL: &str = "data.db";
 const IMG_DIR_PATH: &str = "images";
 const MIN_TEXT_HASHING_SIZE: usize = 50;
+const LARGE_IMAGE_THRESHOLD_BYTES: usize = 2 * 1024 * 1024;
+const THUMBNAIL_MAX_SIDE: u32 = 900;
+const THUMBNAIL_SUFFIX: &str = "_thumb";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 #[derive(SqlType, Debug, FromSqlRow, Copy, Clone, AsExpression)]
@@ -127,7 +134,7 @@ pub struct NewClipboardRecord<'a> {
     pub record_value: &'a str,
     // the default value set in DDL actually will not take effect
     // due to the max-records trigger
-    pub updated_at: NaiveDateTime
+    pub updated_at: NaiveDateTime,
 }
 
 impl RecordStore {
@@ -181,8 +188,8 @@ impl RecordStore {
 
     fn calc_hash(&self, bytes: &[u8]) -> String {
         let mut hasher = Sha256::new();
-        hasher.input(bytes);
-        hasher.result_str()
+        hasher.update(bytes);
+        format!("{:x}", hasher.finalize())
     }
 
     fn save(
@@ -200,7 +207,10 @@ impl RecordStore {
                     .or(schema::clipboard_record::dsl::record_value.eq(record_value)),
             ),
         )
-        .set(schema::clipboard_record::updated_at.eq(Local::now().naive_local()))
+        .set((
+            schema::clipboard_record::updated_at.eq(Local::now().naive_local()),
+            schema::clipboard_record::record_value.eq(record_value),
+        ))
         .execute(conn)?;
         log::info!("Updated rows: {}", updated_rows);
 
@@ -230,7 +240,53 @@ impl RecordStore {
         Ok(())
     }
 
+    fn image_file_name(hash: &str) -> String {
+        format!("{}.png", hash)
+    }
+
+    fn thumbnail_file_name(hash: &str) -> String {
+        format!("{}{}.png", hash, THUMBNAIL_SUFFIX)
+    }
+
+    fn image_path_from_hash(&self, hash: &str) -> PathBuf {
+        self.img_dir.join(Self::image_file_name(hash))
+    }
+
+    fn thumbnail_path_from_hash(&self, hash: &str) -> PathBuf {
+        self.img_dir.join(Self::thumbnail_file_name(hash))
+    }
+
+    fn create_thumbnail_if_needed(&self, image_bytes: &[u8], thumbnail_path: &Path) -> Result<()> {
+        if thumbnail_path.exists() {
+            return Ok(());
+        }
+
+        let Ok(image) = image::load_from_memory(image_bytes) else {
+            warn!("Failed to decode image for thumbnail generation");
+            return Ok(());
+        };
+
+        let thumbnail = image.resize(THUMBNAIL_MAX_SIDE, THUMBNAIL_MAX_SIDE, FilterType::Triangle);
+        let mut thumbnail_bytes = Vec::new();
+        if thumbnail
+            .write_to(&mut Cursor::new(&mut thumbnail_bytes), ImageFormat::Png)
+            .is_err()
+        {
+            warn!("Failed to encode thumbnail image");
+            return Ok(());
+        }
+
+        if let Err(write_err) = std::fs::write(thumbnail_path, thumbnail_bytes) {
+            warn!("Failed to save thumbnail: {:?}", write_err);
+        }
+        Ok(())
+    }
+
     fn filter_dangling_images(&self, hashes: &Vec<String>) -> Result<Vec<String>> {
+        if hashes.is_empty() {
+            return Ok(vec![]);
+        }
+
         let conn = &mut self.get_conn();
         let hash_values: Vec<String> = hashes.iter().map(|h| format!("('{}')", h)).collect();
 
@@ -268,22 +324,31 @@ impl RecordStore {
     fn clean_dangling_images(&self) -> Result<()> {
         if let Some(img_dir) = self.img_dir.to_str() {
             if let Ok(paths) = glob(&format!("{}/*.png", img_dir)) {
-                let hashes: Vec<String> = paths
+                let base_hash_set: HashSet<String> = paths
                     .flatten()
                     .filter_map(|image_path| {
                         image_path
                             .file_stem()
                             .and_then(|p| p.to_str())
-                            .map(|s| s.to_owned())
+                            .map(|s| s.strip_suffix(THUMBNAIL_SUFFIX).unwrap_or(s).to_owned())
                     })
                     .collect();
+
+                let hashes: Vec<String> = base_hash_set.into_iter().collect();
                 let dangling_hashes = self.filter_dangling_images(&hashes)?;
                 dangling_hashes.iter().for_each(|hash| {
-                    let image_path = Path::new(&format!("{}/{}.png", img_dir, hash)).to_path_buf();
-                    if image_path.exists() {
-                        if let Err(_) = fs::remove_file(&image_path) {
-                            warn!("Failed to remove file {:?}", image_path);
-                        }
+                    let original_path =
+                        Path::new(&format!("{}/{}.png", img_dir, hash)).to_path_buf();
+                    let thumbnail_path =
+                        Path::new(&format!("{}/{}{}.png", img_dir, hash, THUMBNAIL_SUFFIX))
+                            .to_path_buf();
+
+                    if original_path.exists() && fs::remove_file(&original_path).is_err() {
+                        warn!("Failed to remove file {:?}", original_path);
+                    }
+
+                    if thumbnail_path.exists() && fs::remove_file(&thumbnail_path).is_err() {
+                        warn!("Failed to remove file {:?}", thumbnail_path);
                     }
                 })
             } else {
@@ -297,22 +362,51 @@ impl RecordStore {
 
     pub fn save_image(&self, image_bytes: &[u8]) -> Result<()> {
         let image_hash = self.calc_hash(image_bytes);
-        let image_path = self.img_dir.join(format!("{}.png", image_hash));
+        let image_path = self.image_path_from_hash(&image_hash);
+        let thumbnail_path = self.thumbnail_path_from_hash(&image_hash);
 
-        let exists = self.save(
-            &RecordType::Image,
-            image_path.to_str().unwrap(),
-            Some(&image_hash),
-        )?;
-        if !exists {
+        if !image_path.exists() {
             if let Err(write_err) = std::fs::write(&image_path, image_bytes) {
                 warn!("Failed to save image: {:?}", write_err);
             }
         }
 
+        let should_use_thumbnail = image_bytes.len() > LARGE_IMAGE_THRESHOLD_BYTES;
+        if should_use_thumbnail {
+            self.create_thumbnail_if_needed(image_bytes, &thumbnail_path)?;
+        }
+
+        let display_path = if should_use_thumbnail && thumbnail_path.exists() {
+            thumbnail_path
+        } else {
+            image_path.clone()
+        };
+
+        self.save(
+            &RecordType::Image,
+            display_path.to_str().unwrap(),
+            Some(&image_hash),
+        )?;
+
         self.clean_dangling_images()?;
 
         Ok(())
+    }
+
+    pub fn get_image_paste_path(&self, record: &ClipboardRecord) -> PathBuf {
+        if let Some(hash) = record.record_hash.as_deref() {
+            let original_path = self.image_path_from_hash(hash);
+            if original_path.exists() {
+                return original_path;
+            }
+        }
+
+        let record_path = PathBuf::from(&record.record_value);
+        if record_path.is_absolute() {
+            record_path
+        } else {
+            self.img_dir.join(record_path)
+        }
     }
 
     pub fn pin(&self, id: &i32) -> Result<ClipboardRecord> {
@@ -341,14 +435,32 @@ impl RecordStore {
 
     pub fn get_records(&self, keyword: &str) -> Vec<ClipboardRecord> {
         let conn = &mut self.get_conn();
-        let records = schema::clipboard_record::table
-            .filter(schema::clipboard_record::dsl::record_value.like(format!("%{}%", keyword)))
-            .order((
-                schema::clipboard_record::dsl::pinned.desc(),
-                schema::clipboard_record::dsl::updated_at.desc(),
-            ))
-            .load::<ClipboardRecord>(conn)
-            .unwrap_or(vec![]);
+        let keyword = keyword.trim();
+        let normalized_keyword = keyword.nfkc().collect::<String>();
+
+        let query = schema::clipboard_record::table.order((
+            schema::clipboard_record::dsl::pinned.desc(),
+            schema::clipboard_record::dsl::updated_at.desc(),
+        ));
+
+        let records = if keyword.is_empty() {
+            query.load::<ClipboardRecord>(conn).unwrap_or(vec![])
+        } else if normalized_keyword != keyword {
+            query
+                .filter(
+                    schema::clipboard_record::dsl::record_value
+                        .like(format!("%{}%", keyword))
+                        .or(schema::clipboard_record::dsl::record_value
+                            .like(format!("%{}%", normalized_keyword))),
+                )
+                .load::<ClipboardRecord>(conn)
+                .unwrap_or(vec![])
+        } else {
+            query
+                .filter(schema::clipboard_record::dsl::record_value.like(format!("%{}%", keyword)))
+                .load::<ClipboardRecord>(conn)
+                .unwrap_or(vec![])
+        };
         records
     }
 
@@ -396,9 +508,18 @@ pub fn unpin_record(store: State<Arc<RecordStore>>, id: i32) {
 pub fn delete_record(store: State<Arc<RecordStore>>, id: i32) {
     let record = store.get_record(&id).unwrap();
     if record.record_type == RecordType::Image {
-        std::fs::remove_file(store.img_dir.join(record.record_value)).unwrap();
+        let original_path = store.get_image_paste_path(&record);
+        if original_path.exists() {
+            let _ = std::fs::remove_file(&original_path);
+        }
+
+        let display_path = PathBuf::from(&record.record_value);
+        if display_path.exists() && display_path != original_path {
+            let _ = std::fs::remove_file(&display_path);
+        }
     }
     store.delete(&id).unwrap();
+    let _ = store.clean_dangling_images();
 }
 
 #[tauri::command]

@@ -10,6 +10,8 @@ const ps = ref<PerfectScrollbar>()
 
 const items = ref<Multipaste.ClipboardRecord[]>([])
 const keyword = ref('')
+const isComposing = ref(false)
+let latestQueryId = 0
 
 watchEffect(() => {
   if (itemsRef.value && !ps.value) {
@@ -29,10 +31,27 @@ onMounted(() => {
 
 watch(keyword, filterRecords)
 
+function onCompositionStart() {
+  isComposing.value = true
+}
+
+function onCompositionEnd() {
+  isComposing.value = false
+  filterRecords()
+}
+
 async function filterRecords() {
+  if (isComposing.value)
+    return
+
+  const queryId = ++latestQueryId
   const records = await invoke<Multipaste.ClipboardRecord[]>('filter_records', {
     keyword: keyword.value,
   })
+
+  if (queryId !== latestQueryId)
+    return
+
   items.value = records
 }
 
@@ -62,6 +81,8 @@ async function deleteRecord(id: number) {
         <i-mdi-magnify class="mr-1 text-xl dark:text-gray-100" />
         <input
           v-model="keyword"
+          @compositionstart="onCompositionStart"
+          @compositionend="onCompositionEnd"
           class="shrink-1 grow-1 select-none border-none bg-transparent p-0 text-1rem outline-none dark:(text-gray-100 placeholder-gray-200) placeholder-gray-600"
           placeholder="Filter..."
         >
@@ -71,7 +92,7 @@ async function deleteRecord(id: number) {
       ref="itemsRef" class="no-scrollbar relative box-border h-[calc(100%-.5rem)] select-none overflow-auto important:pa-2"
     >
       <div class="flex flex-col">
-        <RecordItem v-for="item, index in items" :key="index" :item="item" :class="{ 'mt-2': index > 0 }" @unpin="unpinRecord" @pin="pinRecord" @delete-record="deleteRecord" />
+        <RecordItem v-for="item, index in items" :key="index" :item="item" :keyword="keyword" :class="{ 'mt-2': index > 0 }" @unpin="unpinRecord" @pin="pinRecord" @delete-record="deleteRecord" />
       </div>
     </div>
   </div>

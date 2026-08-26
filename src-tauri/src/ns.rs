@@ -3,9 +3,10 @@ extern crate objc;
 
 use accessibility::{AXAttribute, AXUIElement};
 use accessibility_sys::{
-    kAXFocusedWindowAttribute, kAXRaiseAction, kAXWindowsAttribute, AXError,
+    kAXErrorSuccess, kAXFocusedUIElementAttribute, kAXFocusedWindowAttribute, kAXRaiseAction,
+    kAXSelectedTextAttribute, kAXValueAttribute, kAXWindowsAttribute, AXError,
     AXUIElementCopyAttributeValues, AXUIElementCreateApplication, AXUIElementPerformAction,
-    AXUIElementRef,
+    AXUIElementRef, AXUIElementSetAttributeValue,
 };
 use cocoa::{
     appkit::NSApplicationActivationOptions::NSApplicationActivateIgnoringOtherApps,
@@ -106,5 +107,49 @@ pub fn activate_window(window_info: &WindowInfo) {
         } else {
             warn!("Failed to get window list.")
         }
+    }
+}
+
+pub fn insert_text_to_focused_element(text: &str) -> bool {
+    unsafe {
+        let _pool = NSAutoreleasePool::new(nil);
+
+        let system_wide = AXUIElement::system_wide();
+        let Some(focused_element) = system_wide
+            .attribute(&AXAttribute::new(&CFString::from_static_string(
+                kAXFocusedUIElementAttribute,
+            )))
+            .map(|el| el.downcast_into::<AXUIElement>())
+            .ok()
+            .flatten()
+        else {
+            warn!("Failed to get focused UI element");
+            return false;
+        };
+
+        // Prefer replacing the current selection, then fallback to setting full value.
+        let selected_attr = CFString::new(kAXSelectedTextAttribute);
+        let text_value = CFString::new(text);
+        if AXUIElementSetAttributeValue(
+            focused_element.as_concrete_TypeRef(),
+            selected_attr.as_concrete_TypeRef(),
+            text_value.as_concrete_TypeRef() as *const _,
+        ) == kAXErrorSuccess
+        {
+            return true;
+        }
+
+        let value_attr = CFString::new(kAXValueAttribute);
+        if AXUIElementSetAttributeValue(
+            focused_element.as_concrete_TypeRef(),
+            value_attr.as_concrete_TypeRef(),
+            text_value.as_concrete_TypeRef() as *const _,
+        ) == kAXErrorSuccess
+        {
+            return true;
+        }
+
+        warn!("Failed to insert text through AX attributes");
+        false
     }
 }
